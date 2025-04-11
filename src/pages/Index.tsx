@@ -26,8 +26,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 // import { addMessageToSpace, fetchMessagesFromSpace } from "../firebase/firebaseHelpers.js";
 import { doc, collection } from "firebase/firestore";
 import { db } from "../firebase/firebase"; // adjust this to your path
+import type { ChatMessage as ChatMessageType } from "@/models/chat";
+import { addMessageToSpace as addMessageToSpaceFirebaseHelpers } from "../firebase/firebaseHelpers"; // adjust this path
 
-
+// import { getUserSpaces } from "@/services/spaces";
 
 const Index = () => {
   const isMobile = useIsMobile();
@@ -76,7 +78,23 @@ const Index = () => {
         setRelatedCanvases(canvases);
         return;
       }
+
     }
+
+    // get user spaces from firestore 
+    // useEffect(() => {
+    //   const loadSpacesFromFirestore = async () => {
+    //     if (!currentUser) return;
+    
+    //     const fetchedSpaces = await getUserSpaces(currentUser.uid);
+    //     setSpaces(fetchedSpaces);
+    //   };
+    
+    //   loadSpacesFromFirestore();
+    // }, [currentUser]);
+
+
+
 
     // If no active space or space not found, fall back to default behavior
     if (loadedSpaces.length === 0) {
@@ -165,7 +183,7 @@ const Index = () => {
     const userId = currentUser.uid;
   
     // 🟢 Optimistic UI update
-    const localUserMessage: ChatMessage = {
+    const localUserMessage: ChatMessageType = {
       id: generateFirestoreId(),
       content: message,
       isAi: false,
@@ -184,13 +202,13 @@ const Index = () => {
   
     try {
       // 📝 Store user message in Firestore
-      await addMessageToSpace(userId, currentSpace.id, message, false);
+      await addMessageToSpaceFirebaseHelpers(userId, currentSpace.id, message, false);
   
       // 🤖 Get AI response
       const aiText = await getAiResponse(userId, currentSpace.id, message);
   
       // 🟢 Optimistic AI message update
-      const localAiMessage: ChatMessage = {
+      const localAiMessage: ChatMessageType = {
         id: generateFirestoreId(),
         content: aiText,
         isAi: true,
@@ -221,7 +239,7 @@ const Index = () => {
       }
   
       // 📝 Store AI message in Firestore
-      await addMessageToSpace(userId, currentSpace.id, aiText, true);
+      await addMessageToSpaceFirebaseHelpers(userId, currentSpace.id, aiText, true);
     } catch (error) {
       console.error("Error during chat interaction:", error);
       toast({

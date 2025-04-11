@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useRef, useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Sidebar } from "@/components/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,11 +9,11 @@ import { saveJournal, getJournals, deleteJournal, getJournal } from "@/services/
 import type { Journal } from "@/services/chat-service";
 import { Save, X, Edit, Trash2, Clock, Bold, Italic, Underline, List, Download } from "lucide-react";
 import html2pdf from 'html2pdf.js';
+import { Button } from "@/components/ui/button";
 
 const JournalsPage = () => {
   const isMobile = useIsMobile();
   const location = useLocation();
-  const navigate = useNavigate();
   const [title, setTitle] = useState('Untitled Entry');
   const [content, setContent] = useState('');
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -23,48 +21,18 @@ const JournalsPage = () => {
   const [editingJournal, setEditingJournal] = useState<Journal | null>(null);
   const { toast } = useToast();
 
+  // AI suggestion state
+  const [userInput, setUserInput] = useState('');
+  const [suggestion, setSuggestion] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Load journals on mount
   const loadJournals = React.useCallback(() => {
     const loadedJournals = getJournals();
     setJournals(loadedJournals);
   }, []);
-  
-  // Add handleSaveJournal to useCallback
-  const handleSaveJournal = React.useCallback((showToast = true) => {
-    if (!title.trim()) {
-      toast({
-        title: "Error",
-        description: "Journal title cannot be empty.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    try {
-      const savedJournal = saveJournal(title, content, editingJournal?.id);
-      setLastSaved(savedJournal.updatedAt);
-      setEditingJournal(savedJournal);
-      
-      // Force a refresh of the journals list
-      const loadedJournals = getJournals();
-      setJournals(loadedJournals);
-      
-      if (showToast) {
-        toast({
-          title: "Success",
-          description: editingJournal ? "Journal updated successfully." : "New journal created successfully.",
-        });
-      }
-    } catch (error) {
-      console.error('Error saving journal:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save journal. Please try again.",
-        variant: "destructive",
-      });
-    }
-  }, [title, content, editingJournal, toast]);
-  
-  // Load journals on mount
+
   useEffect(() => {
     loadJournals();
     
@@ -82,6 +50,169 @@ const JournalsPage = () => {
       setLastSaved(null);
     }
   }, [location.state, loadJournals]);
+
+  // Fixed generate suggestion function with proper API response handling
+  const generateSuggestion = async (prompt: string): Promise<string> => {
+    try {
+      setIsLoading(true);
+      
+      const response = await fetch("http://localhost:8000/api/generate-journal", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json" 
+        },
+        body: JSON.stringify({ prompt }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log("API Response:", data);
+      
+      // Use data.result instead of data.suggestion to match FastAPI response
+      return data?.result || "";
+    } catch (error) {
+      console.error("Error generating suggestion:", error);
+      return "";
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  // Debounce effect for AI suggestions
+    useEffect(() => {
+      // Only check for minimum length, but allow spaces
+      if (!userInput || userInput.length < 3) {
+        setSuggestion('');
+        return;
+      }
+
+      // Use the last few words or characters for better suggestions
+      let promptText = userInput;
+      
+      // Optional: If you want to use just the last portion of text for better context
+      // This uses either the last sentence or the last 30 characters, whichever is shorter
+      const lastSentenceMatch = userInput.match(/[^.!?]*$/);
+      if (lastSentenceMatch && lastSentenceMatch[0].trim().length > 0) {
+        promptText = lastSentenceMatch[0];
+      } else {
+        // Fallback to last 30 characters if no sentence pattern is found
+        promptText = userInput.slice(-30);
+      }
+      
+      console.log("Setting up suggestion for:", promptText);
+      
+      const debounceTimer = setTimeout(async () => {
+        try {
+          const newSuggestion = await generateSuggestion(promptText);
+          console.log("API returned suggestion:", newSuggestion);
+          setSuggestion(newSuggestion);
+        } catch (error) {
+          console.error('Error generating suggestion:', error);
+          setSuggestion('');
+        }
+      }, 500);
+
+      return () => clearTimeout(debounceTimer);
+    }, [userInput]);
+
+  // Debounce effect for AI suggestions
+  // useEffect(() => {
+  //   // Don't generate suggestions in these cases
+  //   if (!userInput || userInput.length < 3 || userInput.endsWith(' ')) {
+  //     setSuggestion('');
+  //     return;
+  //   }
+  
+  //   // Use the last sentence or fragment for better suggestions
+  //   const lastSentenceMatch = userInput.match(/[^.!?]*$/);
+  //   const promptText = lastSentenceMatch ? lastSentenceMatch[0].trim() : userInput;
+    
+  //   // Don't generate if prompt is too short
+  //   if (promptText.length < 3) {
+  //     setSuggestion('');
+  //     return;
+  //   }
+  
+  //   const debounceTimer = setTimeout(async () => {
+  //     try {
+  //       const newSuggestion = await generateSuggestion(promptText);
+  //       console.log("New suggestion:", newSuggestion);
+  //       setSuggestion(newSuggestion);
+  //     } catch (error) {
+  //       console.error('Error generating suggestion:', error);
+  //       setSuggestion('');
+  //     }
+  //   }, 500);
+  
+  //   return () => clearTimeout(debounceTimer);
+  // }, [userInput]);
+
+  // Handle Tab key to accept suggestion
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab' && suggestion) {
+      e.preventDefault();
+      
+      const newContent = userInput + suggestion;
+      setUserInput(newContent);
+      setContent(newContent); // Keep content in sync
+      setSuggestion('');
+      
+      // Move cursor to end of text
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = newContent.length;
+          textareaRef.current.selectionEnd = newContent.length;
+          textareaRef.current.focus();
+        }
+      }, 0);
+    }
+  };
+
+  // Handle textarea input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setUserInput(value);
+    setContent(value); // Keep content in sync
+  };
+
+  // Save journal logic
+  const handleSaveJournal = React.useCallback((showToast = true) => {
+    if (!title.trim()) {
+      toast({
+        title: "Error",
+        description: "Journal title cannot be empty.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      const savedJournal = saveJournal(title, content, editingJournal?.id);
+      setLastSaved(savedJournal.updatedAt);
+      setEditingJournal(savedJournal);
+      
+      // Force a refresh of the journals list
+      loadJournals();
+      
+      if (showToast) {
+        toast({
+          title: "Success",
+          description: editingJournal ? "Journal updated successfully." : "New journal created successfully.",
+        });
+      }
+    } catch (error) {
+      console.error('Error saving journal:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save journal. Please try again.",
+        variant: "destructive",
+      });
+    }
+  }, [title, content, editingJournal, toast, loadJournals]);
   
   // Auto-save effect
   useEffect(() => {
@@ -99,6 +230,7 @@ const JournalsPage = () => {
   const handleEditJournal = (journal: Journal) => {
     setTitle(journal.title);
     setContent(journal.content);
+    setUserInput(journal.content); // Set userInput to keep in sync
     setEditingJournal(journal);
     setLastSaved(journal.updatedAt);
     
@@ -144,6 +276,8 @@ const JournalsPage = () => {
   const handleNewJournal = () => {
     setTitle('Untitled Entry');
     setContent('');
+    setUserInput(''); // Reset user input
+    setSuggestion(''); // Clear suggestion
     setEditingJournal(null);
     setLastSaved(null);
   };
@@ -277,19 +411,59 @@ const JournalsPage = () => {
                 <List size={16} />
               </button>
             </div>
-            
-            <div
-              contentEditable
-              className="min-h-[40vh] p-4 outline-none prose prose-sm dark:prose-invert prose-ul:pl-6 prose-ul:mt-2 prose-ul:mb-2 prose-li:my-1 prose-li:marker:text-current max-w-none block"
-              onInput={(e) => setContent(e.currentTarget.innerHTML)}
-              dangerouslySetInnerHTML={{ __html: content }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && window.getSelection()?.anchorNode?.parentElement?.tagName === 'LI') {
-                  e.preventDefault();
-                  document.execCommand('insertHTML', false, '<li>&nbsp;</li>');
-                }
-              }}
-            />
+
+            <div className="relative">
+              {/* Main textarea for user input */}
+              <textarea
+                ref={textareaRef}
+                value={userInput}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                className="w-full min-h-[40vh] p-4 resize-y font-sans"
+                placeholder="Start writing your journal..."
+                spellCheck={true}
+              />
+              
+              {/* Suggestion overlay */}
+              {suggestion && (
+                <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+                  <div className="p-4 whitespace-pre-wrap">
+                    <span className="opacity-0">{userInput}</span>
+                    <span className="text-gray-400 italic">{suggestion}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab hint and loading spinner */}
+              <div className="text-xs text-gray-500 mt-2 flex items-center gap-2">
+                {suggestion && (
+                  <>
+                    Press <kbd className="px-1 border rounded">Tab</kbd> to accept suggestion
+                  </>
+                )}
+                {isLoading && (
+                  <svg
+                    className="animate-spin h-4 w-4 ml-2 text-gray-400"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                )}
+              </div>
+            </div>
           </div>
           
           <div className="flex justify-end gap-2 mb-8">
