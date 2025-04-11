@@ -35,6 +35,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Journal } from "@/models/chat";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CreateItemDialog } from "./create-item-dialog";
+import { getAuth, signOut } from "firebase/auth";
+import { auth } from '@/firebase/firebase';
 
 export function Sidebar() {
   const [journalsOpen, setJournalsOpen] = useState(true);
@@ -93,6 +95,12 @@ export function Sidebar() {
 
   const isActive = (path: string) => {
     return location.pathname === path;
+  };
+
+  // handle signout
+  const handleSignOut = async () => {
+    await signOut(auth)
+    navigate("/signin");
   };
 
   const SidebarContent = () => (
@@ -300,7 +308,9 @@ export function Sidebar() {
             <HelpCircle size={16} />
             <span>Help</span>
           </div>
-          <div className="flex items-center gap-2 p-2 text-sm hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer">
+          <div className="flex items-center gap-2 p-2 text-sm hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer"
+            onClick={handleSignOut}
+>
             <LogOut size={16} />
             <span>Exit to Home</span>
           </div>
@@ -354,6 +364,7 @@ export function Sidebar() {
     </div>
   );
 }
+
 
 
 
