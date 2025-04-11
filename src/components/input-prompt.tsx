@@ -71,8 +71,8 @@ export function InputPrompt({
   return (
     <div className="border rounded-lg p-4 bg-background shadow-sm">
       <div className="mb-2 flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">Make a plot of...</span>
-        <div className="p-1 px-2 bg-muted rounded-md text-xs text-muted-foreground">@DeepTutor</div>
+        {/* <span className="text-sm text-muted-foreground">Make a plot of...</span>
+        <div className="p-1 px-2 bg-muted rounded-md text-xs text-muted-foreground">@DeepTutor</div> */}
       </div>
       <Textarea 
         value={message}
@@ -125,9 +125,9 @@ export function InputPrompt({
           </PopoverContent>
         </Popover>
         <div className="flex items-center gap-2">
-          <p className="text-xs text-muted-foreground">
+          {/* <p className="text-xs text-muted-foreground">
             Feynman may make mistakes. Check important info and please report any bugs.
-          </p>
+          </p> */}
           <button 
             className="p-2 bg-primary rounded-lg text-primary-foreground"
             onClick={handleSendMessage}
