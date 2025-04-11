@@ -2,7 +2,13 @@
 import { initializeApp } from "firebase/app";
 // import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  getDoc,
+  serverTimestamp 
+} from "firebase/firestore";
 
 
 // TODO: Add SDKs for Firebase products that you want to use
@@ -24,10 +30,27 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 // const analytics = getAnalytics(app);
 
-// Export Firebase Auth
-// export const auth = getAuth(app);
+// Export Firebase services
 const auth = getAuth(app);
-const db = getFirestore(app); // ✅ Firestore export
+const db = getFirestore(app);
 
+// User profile functions
+const createUserProfile = async (user: any, additionalData = {}) => {
+  const userRef = doc(db, 'users', user.uid);
+  await setDoc(userRef, {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName || '',
+    photoURL: user.photoURL || '',
+    createdAt: serverTimestamp(),
+    ...additionalData
+  });
+};
 
-export {app, auth, db};
+const getUserProfile = async (userId: string) => {
+  const userRef = doc(db, 'users', userId);
+  const snapshot = await getDoc(userRef);
+  return snapshot.exists() ? snapshot.data() : null;
+};
+
+export { app, auth, db, createUserProfile, getUserProfile };

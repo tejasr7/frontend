@@ -1,23 +1,83 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Sidebar } from "../components/sidebar";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Textarea } from "../components/ui/textarea";
+import { useToast } from "../hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
+import { User, Camera, UserCircle, Edit, Save, Plus, MessageSquare, GraduationCap, FileText } from "lucide-react";
+import { auth, db } from "../firebase/firebase";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 
-import React, { useState, useRef } from 'react';
-import { Sidebar } from "@/components/sidebar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { getUserProfile, saveUserProfile, UserProfile } from "@/services/chat-service";
-import { useToast } from "@/hooks/use-toast";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { User, Camera, UserCircle, Edit, Save, Plus } from "lucide-react";
+interface UserProfile {
+  uid: string;
+  name: string;
+  email: string;
+  avatarUrl: string;
+  bio: string;
+  interests: string[];
+  chatCount?: number;
+  journalCount?: number;
+  courseCount?: number;
+}
 
 const ProfilePage = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("profile");
-  const [userProfile, setUserProfile] = useState<UserProfile>(getUserProfile());
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedProfile, setEditedProfile] = useState<UserProfile>(getUserProfile());
+  const [editedProfile, setEditedProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      try {
+        setLoading(true);
+        
+        if (!user) {
+          // Redirect to login or show appropriate message
+          toast({
+            title: "Authentication Required",
+            description: "Please sign in to view your profile",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        const profileDoc = await getDoc(doc(db, 'users', user.uid));
+        if (!profileDoc.exists()) {
+          toast({
+            title: "Profile Not Found",
+            description: "Please complete your profile setup",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        const profileData = profileDoc.data() as UserProfile;
+        if (!profileData.name || !profileData.email) {
+          throw new Error('Invalid profile data');
+        }
+
+        setUserProfile(profileData);
+        setEditedProfile({...profileData});
+      } catch (error) {
+        console.error("Error loading profile:", error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to load profile data",
+        });
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const profilePictureInputRef = useRef<HTMLInputElement>(null);
 
   const handleTabChange = (value: string) => {
@@ -25,26 +85,38 @@ const ProfilePage = () => {
   };
 
   const handleEditProfile = () => {
-    setEditedProfile({...userProfile});
-    setIsEditing(true);
+    if (userProfile) {
+      setEditedProfile({...userProfile});
+      setIsEditing(true);
+    }
   };
 
-  const handleSaveProfile = () => {
-    saveUserProfile(editedProfile);
-    setUserProfile(editedProfile);
-    setIsEditing(false);
-    toast({
-      title: "Profile Updated",
-      description: "Your profile has been updated successfully.",
-    });
+  const handleSaveProfile = async () => {
+    if (!editedProfile) return;
+    
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('No authenticated user');
+      
+      await setDoc(doc(db, 'users', user.uid), editedProfile, { merge: true });
+      setUserProfile(editedProfile);
+      setIsEditing(false);
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully.",
+      });
+    } catch (error) {
+      console.error("Error saving profile:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile",
+      });
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setEditedProfile(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setEditedProfile(prev => prev ? {...prev, [name]: value} : null);
   };
 
   const handleUploadProfilePicture = () => {
@@ -53,22 +125,38 @@ const ProfilePage = () => {
   
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !editedProfile) return;
     
-    // In a real app, you would upload this to a server and get a URL back
-    // For now, we'll use a local object URL as a placeholder
     const imageUrl = URL.createObjectURL(file);
-    
-    setEditedProfile(prev => ({
-      ...prev,
-      avatarUrl: imageUrl
-    }));
+    setEditedProfile({...editedProfile, avatarUrl: imageUrl});
     
     toast({
       title: "Profile Picture Updated",
       description: "Click 'Save Changes' to apply your new profile picture.",
     });
   };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen bg-background">
+        <Sidebar />
+        <main className="flex-1 p-6 flex items-center justify-center">
+          <div>Loading profile...</div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!userProfile) {
+    return (
+      <div className="flex min-h-screen bg-background">
+        <Sidebar />
+        <main className="flex-1 p-6 flex items-center justify-center">
+          <div>Error loading profile data</div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -94,7 +182,7 @@ const ProfilePage = () => {
                       <div className="relative">
                         <Avatar className="w-32 h-32 border-2 border-primary/20">
                           <AvatarImage 
-                            src={isEditing ? editedProfile.avatarUrl : userProfile.avatarUrl} 
+                            src={isEditing && editedProfile ? editedProfile.avatarUrl : userProfile.avatarUrl} 
                             alt={userProfile.name} 
                           />
                           <AvatarFallback className="text-3xl">
@@ -146,7 +234,7 @@ const ProfilePage = () => {
                             <Input
                               id="name"
                               name="name"
-                              value={editedProfile.name}
+                              value={editedProfile?.name || ''}
                               onChange={handleChange}
                             />
                           )}
@@ -161,7 +249,7 @@ const ProfilePage = () => {
                               id="email"
                               name="email"
                               type="email"
-                              value={editedProfile.email}
+                              value={editedProfile?.email || ''}
                               onChange={handleChange}
                             />
                           )}
@@ -176,7 +264,7 @@ const ProfilePage = () => {
                           <Textarea
                             id="bio"
                             name="bio"
-                            value={editedProfile.bio}
+                            value={editedProfile?.bio || ''}
                             onChange={handleChange}
                             rows={4}
                           />
@@ -186,7 +274,7 @@ const ProfilePage = () => {
                       <div className="space-y-2">
                         <Label>Interests</Label>
                         <div className="flex flex-wrap gap-2">
-                          {(isEditing ? editedProfile.interests : userProfile.interests).map((interest, index) => (
+                          {(isEditing && editedProfile ? editedProfile.interests || [] : userProfile.interests || []).map((interest, index) => (
                             <div 
                               key={index}
                               className="bg-muted px-3 py-1 rounded-full text-sm"
@@ -202,11 +290,11 @@ const ProfilePage = () => {
                               className="rounded-full"
                               onClick={() => {
                                 const interest = prompt("Enter a new interest:");
-                                if (interest?.trim()) {
-                                  setEditedProfile(prev => ({
-                                    ...prev,
-                                    interests: [...prev.interests, interest.trim()]
-                                  }));
+                                if (interest?.trim() && editedProfile) {
+                                  setEditedProfile({
+                                    ...editedProfile,
+                                    interests: [...editedProfile.interests, interest.trim()]
+                                  });
                                 }
                               }}
                             >
@@ -269,7 +357,6 @@ const ProfilePage = () => {
                     
                     <div className="mt-6">
                       <h3 className="text-lg font-medium mb-4">Recent Activity</h3>
-                      {/* Placeholder for recent activity */}
                       <div className="space-y-2">
                         {[1, 2, 3].map((i) => (
                           <div key={i} className="flex items-center gap-3 border-b pb-2">
@@ -304,8 +391,5 @@ const ProfilePage = () => {
     </div>
   );
 };
-
-// Import these at the top once it's been defined
-import { MessageSquare, GraduationCap, FileText } from "lucide-react";
 
 export default ProfilePage;
