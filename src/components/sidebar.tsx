@@ -130,7 +130,7 @@ export function Sidebar() {
 
       <div className="p-4 border-b">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-2xl">Klarity</h2>
+          <h2 className="font-semibold text-2xl">{isCollapsed ? 'K' : 'Klarity'}</h2>
         </div>
         
         {!isCollapsed && (

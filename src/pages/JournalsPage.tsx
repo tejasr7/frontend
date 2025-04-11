@@ -9,7 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { saveJournal, getJournals, deleteJournal, getJournal } from "@/services/chat-service";
 import type { Journal } from "@/services/chat-service";
-import { Save, X, Edit, Trash2, Clock, Bold, Italic, Underline, List } from "lucide-react";
+import { Save, X, Edit, Trash2, Clock, Bold, Italic, Underline, List, Download } from "lucide-react";
+import html2pdf from 'html2pdf.js';
 
 const JournalsPage = () => {
   const isMobile = useIsMobile();
@@ -151,6 +152,56 @@ const JournalsPage = () => {
     document.execCommand(command, false, undefined);
   };
 
+  const handleExportPDF = async () => {
+    if (!title.trim()) {
+      toast({
+        title: "Error",
+        description: "Please add a title before exporting to PDF.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Create a temporary div for PDF content
+      const element = document.createElement('div');
+      element.innerHTML = `
+        <div style="color: #000000;">
+          <h1 style="font-size: 24px; margin-bottom: 16px; color: #000000;">${title}</h1>
+          <div style="font-size: 14px; color: #666666; margin-bottom: 24px;">
+            ${new Date().toLocaleString()}
+          </div>
+          <div style="line-height: 1.6; color: #000000;">
+            ${content}
+          </div>
+        </div>
+      `;
+
+      const opt = {
+        margin: 1,
+        filename: `${title.toLowerCase().replace(/\s+/g, '-')}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+
+      // Generate PDF
+      html2pdf().set(opt).from(element).save().then(() => {
+        toast({
+          title: "Success",
+          description: "Journal exported to PDF successfully.",
+        });
+      });
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast({
+        title: "Error",
+        description: "Failed to export journal to PDF. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
@@ -241,7 +292,11 @@ const JournalsPage = () => {
             />
           </div>
           
-          <div className="flex justify-end mb-8">
+          <div className="flex justify-end gap-2 mb-8">
+            <Button variant="outline" onClick={handleExportPDF}>
+              <Download className="mr-2 h-4 w-4" />
+              Export PDF
+            </Button>
             <Button onClick={() => handleSaveJournal(true)}>
               <Save className="mr-2 h-4 w-4" />
               {editingJournal ? 'Update Journal' : 'Save Journal'}
