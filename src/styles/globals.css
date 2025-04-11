@@ -1,0 +1,39 @@
+@layer base {
+  [contenteditable] {
+    outline: none;
+    min-height: 40vh;
+    padding: 1rem;
+  }
+
+  [contenteditable] ul {
+    list-style-type: disc !important;
+    padding-left: 2em !important;
+    margin: 0.5em 0 !important;
+  }
+
+  [contenteditable] li {
+    margin: 0.25em 0 !important;
+    display: list-item !important;
+  }
+
+  /* Remove any default list styles that might interfere */
+  [contenteditable] ul:not([class]) {
+    list-style-type: disc !important;
+  }
+
+  [contenteditable] li:not([class]) {
+    display: list-item !important;
+  }
+}
+
+[contenteditable] h1 {
+  font-size: 1.5em;
+  font-weight: bold;
+  margin: 0.5em 0;
+}
+
+[contenteditable] h2 {
+  font-size: 1.25em;
+  font-weight: bold;
+  margin: 0.5em 0;
+}
