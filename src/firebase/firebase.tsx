@@ -40,7 +40,7 @@ const createUserProfile = async (user: any, additionalData = {}) => {
   await setDoc(userRef, {
     uid: user.uid,
     email: user.email,
-    displayName: user.displayName || '',
+    name: user.displayName || '',
     photoURL: user.photoURL || '',
     createdAt: serverTimestamp(),
     ...additionalData

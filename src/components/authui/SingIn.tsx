@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
-import { auth } from "../../firebase/firebase"; // Adjust path as needed
+import { auth, createUserProfile } from "../../firebase/firebase"; // Adjust path as needed
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 
@@ -39,7 +39,10 @@ const SignIn: React.FC = () => {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       console.log("Google sign-in successful:", result.user);
-
+      
+      // Save user data to Firestore
+      await createUserProfile(result.user);
+      
       alert("Signed in with Google!");
       navigate("/"); // Redirect to home or chat page
     } catch (error: any) {
