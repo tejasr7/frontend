@@ -108,7 +108,7 @@ export function Sidebar() {
       {!isMobile && (
         <button 
           onClick={toggleCollapse}
-          className="absolute -right-3 top-20 bg-primary text-primary-foreground rounded-full p-1 shadow-md z-50"
+          className="absolute -right-3 top-10 bg-primary text-primary-foreground rounded-full p-1 shadow-md z-50"
         >
           {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
@@ -134,6 +134,14 @@ export function Sidebar() {
               <Search size={16} />
               <span>Search</span>
             </div>
+            <Link to="/tasks" className={`flex items-center gap-2 p-2 rounded-md cursor-pointer ${isActive("/tasks") ? "bg-accent text-accent-foreground" : "hover:bg-accent hover:text-accent-foreground"}`}>
+              <ClipboardList size={16} />
+              <span>Tasks</span>
+            </Link>
+            <Link to="/courses" className={`flex items-center gap-2 p-2 rounded-md cursor-pointer ${isActive("/courses") ? "bg-accent text-accent-foreground" : "hover:bg-accent hover:text-accent-foreground"}`}>
+              <GraduationCap size={16} />
+              <span>Courses</span>
+            </Link>
           </div>
         )}
       </div>
@@ -245,16 +253,6 @@ export function Sidebar() {
 
       {isCollapsed ? (
         <div className="p-4 flex flex-col items-center gap-4">
-          <Link to="/tasks">
-            <Button variant={isActive("/tasks") ? "default" : "ghost"} size="icon">
-              <ClipboardList size={18} />
-            </Button>
-          </Link>
-          <Link to="/courses">
-            <Button variant={isActive("/courses") ? "default" : "ghost"} size="icon">
-              <GraduationCap size={18} />
-            </Button>
-          </Link>
           <Button 
             variant="ghost" 
             size="icon"
@@ -271,15 +269,7 @@ export function Sidebar() {
           </Button>
         </div>
       ) : (
-        <div className="mt-auto p-4 space-y-2">
-          <Link to="/tasks" className={`flex items-center gap-2 p-2 text-sm rounded-md cursor-pointer ${isActive("/tasks") ? "bg-accent text-accent-foreground" : "hover:bg-accent hover:text-accent-foreground"}`}>
-            <ClipboardList size={16} />
-            <span>Tasks</span>
-          </Link>
-          <Link to="/courses" className={`flex items-center gap-2 p-2 text-sm rounded-md cursor-pointer ${isActive("/courses") ? "bg-accent text-accent-foreground" : "hover:bg-accent hover:text-accent-foreground"}`}>
-            <GraduationCap size={16} />
-            <span>Courses</span>
-          </Link>
+      <div className="mt-auto p-4 space-y-2">
           <div 
             className="flex items-center gap-2 p-2 text-sm hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer"
             onClick={() => setDialogOpen('premium')}
