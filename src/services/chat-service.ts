@@ -1,6 +1,6 @@
 import { ChatSpace, ChatMessage, Canvas, Journal } from "../models/chat";
 import { sendMessageToBackend } from "./api"; 
-import { collection, addDoc, getDocs, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/firebase"; // Adjust the import based on your project structure
 
 // Local storage keys
@@ -59,16 +59,12 @@ const loadJournals = (): Journal[] => {
   try {
     const journals = JSON.parse(journalsJson);
     return journals.map((journal: any) => ({
-      id: journal.id,
-      title: journal.title,
-      content: journal.content || '',
+      ...journal,
       createdAt: new Date(journal.createdAt),
       updatedAt: new Date(journal.updatedAt)
-    }))
-    .filter((journal: Journal) => journal.title && journal.id) // Filter out invalid journals
-    .sort((a: Journal, b: Journal) => b.updatedAt.getTime() - a.updatedAt.getTime()); // Sort by latest first
-  } catch (error) {
-    console.error('Error loading journals:', error);
+    }));
+  } catch (e) {
+    console.error('Error parsing journals from localStorage', e);
     return [];
   }
 };
@@ -83,17 +79,7 @@ const saveCanvases = (canvases: Canvas[]) => {
 };
 
 const saveJournals = (journals: Journal[]) => {
-  try {
-    const journalsToSave = journals.map(journal => ({
-      ...journal,
-      createdAt: journal.createdAt.toISOString(),
-      updatedAt: journal.updatedAt.toISOString()
-    }));
-    localStorage.setItem(JOURNALS_KEY, JSON.stringify(journalsToSave));
-  } catch (error) {
-    console.error('Error saving journals to localStorage:', error);
-    throw new Error('Failed to save journals to localStorage');
-  }
+  localStorage.setItem(JOURNALS_KEY, JSON.stringify(journals));
 };
 /////////////////////////////////////////////
 // Chat space operations
@@ -147,25 +133,71 @@ export const getSpace = (id: string): ChatSpace | undefined => {
   return spaces.find(space => space.id === id);
 };
 
-export const addMessageToSpace = (spaceId: string, content: string, isAi: boolean): ChatMessage | null => {
+export const addMessageToSpace = async (
+  userId: string,
+  spaceId: string,
+  content: string,
+  isAi: boolean
+): Promise<ChatMessage | null> => {
   const spaces = loadSpaces();
   const spaceIndex = spaces.findIndex(space => space.id === spaceId);
-  
   if (spaceIndex === -1) return null;
-  
+
   const message: ChatMessage = {
     id: generateId(),
     content,
     isAi,
     timestamp: new Date()
   };
-  
+
+  // LocalStorage push
   spaces[spaceIndex].messages.push(message);
   spaces[spaceIndex].updatedAt = new Date();
-  
   saveSpaces(spaces);
+
+  // Firestore push
+  try {
+    const messageRef = collection(
+      db,
+      "chat_history",
+      userId,
+      "messages",
+      spaceId,
+      "messages"
+    );
+
+    await addDoc(messageRef, {
+      content,
+      isAi,
+      timestamp: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error("Error saving message to Firestore:", err);
+    // Optionally return early or keep local fallback
+  }
+
   return message;
 };
+
+// export const addMessageToSpace = (spaceId: string, content: string, isAi: boolean): ChatMessage | null => {
+//   const spaces = loadSpaces();
+//   const spaceIndex = spaces.findIndex(space => space.id === spaceId);
+  
+//   if (spaceIndex === -1) return null;
+  
+//   const message: ChatMessage = {
+//     id: generateId(),
+//     content,
+//     isAi,
+//     timestamp: new Date()
+//   };
+  
+//   spaces[spaceIndex].messages.push(message);
+//   spaces[spaceIndex].updatedAt = new Date();
+  
+//   saveSpaces(spaces);
+//   return message;
+// };
 
 export const deleteSpace = (id: string): boolean => {
   const spaces = loadSpaces();
@@ -213,91 +245,36 @@ export const deleteCanvas = (id: string): boolean => {
 };
 
 // Journal operations
-export const saveJournal = (title: string, content: string, id?: string): Journal => {
-  try {
-    const journals = loadJournals() || [];
-    const now = new Date();
-    let savedJournal: Journal;
+export const saveJournal = (title: string, content: string): Journal => {
+  const journals = loadJournals();
+  const existingJournalIndex = journals.findIndex(j => j.title === title);
+  
+  if (existingJournalIndex >= 0) {
+    // Update existing journal
+    journals[existingJournalIndex].content = content;
+    journals[existingJournalIndex].updatedAt = new Date();
+    saveJournals(journals);
+    return journals[existingJournalIndex];
+  } else {
+    // Create new journal
+    const newJournal: Journal = {
+      id: generateId(),
+      title,
+      content,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
     
-    if (id) {
-      // Update existing journal
-      const index = journals.findIndex(j => j.id === id);
-      if (index >= 0) {
-        savedJournal = {
-          id,
-          title: title.trim(),
-          content,
-          createdAt: journals[index].createdAt,
-          updatedAt: now
-        };
-        journals[index] = savedJournal;
-      } else {
-        throw new Error('Journal not found');
-      }
-    } else {
-      // Create new journal
-      savedJournal = {
-        id: generateId(),
-        title: title.trim(),
-        content: content || '',  // Ensure content is never undefined
-        createdAt: now,
-        updatedAt: now
-      };
-      journals.unshift(savedJournal);
-    }
-    
-    try {
-      const journalsToSave = journals.map(journal => ({
-        ...journal,
-        createdAt: journal.createdAt.toISOString(),
-        updatedAt: journal.updatedAt.toISOString()
-      }));
-      localStorage.setItem(JOURNALS_KEY, JSON.stringify(journalsToSave));
-    } catch (error) {
-      console.error('Error saving to localStorage:', error);
-      throw new Error('Failed to save journal to localStorage');
-    }
-    
-    return savedJournal;
-  } catch (error) {
-    console.error('Error in saveJournal:', error);
-    throw new Error(`Failed to save journal: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    journals.push(newJournal);
+    saveJournals(journals);
+    return newJournal;
   }
 };
 
 export const getJournals = (): Journal[] => {
-  try {
-    const journals = loadJournals();
-    // Sort by updatedAt in descending order (newest first)
-    return journals
-      .filter(journal => journal.title && journal.id) // Ensure valid journals
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
-  } catch (error) {
-    console.error('Error getting journals:', error);
-    return [];
-  }
-};
-
-export const deleteJournal = (id: string): boolean => {
-  try {
-    const journals = loadJournals();
-    if (!journals || !Array.isArray(journals)) {
-      console.error('Invalid journals data');
-      return false;
-    }
-
-    const newJournals = journals.filter(journal => journal.id !== id);
-    if (newJournals.length === journals.length) {
-      console.error('Journal not found:', id);
-      return false;
-    }
-    
-    saveJournals(newJournals);
-    return true;
-  } catch (error) {
-    console.error('Error deleting journal:', error);
-    return false;
-  }
+  return loadJournals().sort((a, b) => 
+    b.updatedAt.getTime() - a.updatedAt.getTime()
+  );
 };
 
 export const getJournal = (id: string): Journal | undefined => {
@@ -305,8 +282,18 @@ export const getJournal = (id: string): Journal | undefined => {
   return journals.find(journal => journal.id === id);
 };
 
+export const deleteJournal = (id: string): boolean => {
+  const journals = loadJournals();
+  const newJournals = journals.filter(journal => journal.id !== id);
+  
+  if (newJournals.length === journals.length) return false;
+  
+  saveJournals(newJournals);
+  return true;
+};
+
 // Simulate AI response (in a real app, this would call an API)
-export const getAiResponse = async (userId: string, message: string): Promise<string> => {
+export const getAiResponse = async (userId: string,   spaceId: string, message: string): Promise<string> => {
   // Simulate network delay
   // await new Promise(resolve => setTimeout(resolve, 1000));
 
@@ -318,6 +305,7 @@ export const getAiResponse = async (userId: string, message: string): Promise<st
       },
       body: JSON.stringify({
         user_id: userId,
+        space_id: spaceId,
         message: message,
       }),
     });
@@ -357,13 +345,30 @@ export const getAiResponse = async (userId: string, message: string): Promise<st
   //   " (This is a simulated AI response to: " + message + ")";  
 };
 
-export const handleChatInteraction = async (spaceId: string, userId: string, userMessage: string): Promise<ChatMessage[]> => {
-  const userMsg = addMessageToSpace(spaceId, userMessage, false);
-  const aiText = await getAiResponse(userId, userMessage);
-  const aiMsg = addMessageToSpace(spaceId, aiText, true);
 
-  return [userMsg!, aiMsg];
+export const handleChatInteraction = async (
+  userId: string,
+  spaceId: string,
+  userMessage: string
+): Promise<ChatMessage[]> => {
+  const userMsg = await addMessageToSpace(userId, spaceId, userMessage, false);
+
+  const aiText = await getAiResponse(userId, spaceId, userMessage);
+
+  const aiMsg = await addMessageToSpace(userId, spaceId, aiText, true);
+
+  // Filter out any nulls in case something fails
+  return [userMsg, aiMsg].filter((msg): msg is ChatMessage => msg !== null);
 };
+
+// export const handleChatInteraction = async (spaceId: string, userId: string, userMessage: string): Promise<ChatMessage[]> => {
+//   const userMsg = addMessageToSpace(spaceId, userMessage, false);
+//   const aiText = await getAiResponse(userId, userMessage);
+//   const aiMsg = addMessageToSpace(spaceId, aiText, true);
+
+//   return [userMsg!, aiMsg];
+// };
+
 
 
 
@@ -760,5 +765,10 @@ const getAllUserCourses = (): UserCourse[] => {
     return [];
   }
 };
+
+
+
+
+
 
 export type {Journal , Canvas, ChatSpace, ChatMessage};
