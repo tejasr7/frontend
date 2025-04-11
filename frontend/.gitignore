@@ -24,5 +24,3 @@ dist-ssr
 *.sw?
 .qodo
 
-
-firebase-key.json
