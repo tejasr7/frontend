@@ -333,7 +333,7 @@ const Index = () => {
             </div>
           )}
 
-<div className=" flex w-full fixed  bottom-0 bg-background pt-4 pb-4 ">
+<div className=" flex w-full fixed  bottom-0 bg-background pt-4 pb-0 ">
             <div className="flex flex-col gap-2 w-full max-w-4xl ">
               <InputPrompt 
                 onSendMessage={handleSendMessage} 
