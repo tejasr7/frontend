@@ -59,12 +59,16 @@ const loadJournals = (): Journal[] => {
   try {
     const journals = JSON.parse(journalsJson);
     return journals.map((journal: any) => ({
-      ...journal,
+      id: journal.id,
+      title: journal.title,
+      content: journal.content || '',
       createdAt: new Date(journal.createdAt),
       updatedAt: new Date(journal.updatedAt)
-    }));
-  } catch (e) {
-    console.error('Error parsing journals from localStorage', e);
+    }))
+    .filter((journal: Journal) => journal.title && journal.id) // Filter out invalid journals
+    .sort((a: Journal, b: Journal) => b.updatedAt.getTime() - a.updatedAt.getTime()); // Sort by latest first
+  } catch (error) {
+    console.error('Error loading journals:', error);
     return [];
   }
 };
@@ -79,7 +83,17 @@ const saveCanvases = (canvases: Canvas[]) => {
 };
 
 const saveJournals = (journals: Journal[]) => {
-  localStorage.setItem(JOURNALS_KEY, JSON.stringify(journals));
+  try {
+    const journalsToSave = journals.map(journal => ({
+      ...journal,
+      createdAt: journal.createdAt.toISOString(),
+      updatedAt: journal.updatedAt.toISOString()
+    }));
+    localStorage.setItem(JOURNALS_KEY, JSON.stringify(journalsToSave));
+  } catch (error) {
+    console.error('Error saving journals to localStorage:', error);
+    throw new Error('Failed to save journals to localStorage');
+  }
 };
 /////////////////////////////////////////////
 // Chat space operations
@@ -199,51 +213,96 @@ export const deleteCanvas = (id: string): boolean => {
 };
 
 // Journal operations
-export const saveJournal = (title: string, content: string): Journal => {
-  const journals = loadJournals();
-  const existingJournalIndex = journals.findIndex(j => j.title === title);
-  
-  if (existingJournalIndex >= 0) {
-    // Update existing journal
-    journals[existingJournalIndex].content = content;
-    journals[existingJournalIndex].updatedAt = new Date();
-    saveJournals(journals);
-    return journals[existingJournalIndex];
-  } else {
-    // Create new journal
-    const newJournal: Journal = {
-      id: generateId(),
-      title,
-      content,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
+export const saveJournal = (title: string, content: string, id?: string): Journal => {
+  try {
+    const journals = loadJournals() || [];
+    const now = new Date();
+    let savedJournal: Journal;
     
-    journals.push(newJournal);
-    saveJournals(journals);
-    return newJournal;
+    if (id) {
+      // Update existing journal
+      const index = journals.findIndex(j => j.id === id);
+      if (index >= 0) {
+        savedJournal = {
+          id,
+          title: title.trim(),
+          content,
+          createdAt: journals[index].createdAt,
+          updatedAt: now
+        };
+        journals[index] = savedJournal;
+      } else {
+        throw new Error('Journal not found');
+      }
+    } else {
+      // Create new journal
+      savedJournal = {
+        id: generateId(),
+        title: title.trim(),
+        content: content || '',  // Ensure content is never undefined
+        createdAt: now,
+        updatedAt: now
+      };
+      journals.unshift(savedJournal);
+    }
+    
+    try {
+      const journalsToSave = journals.map(journal => ({
+        ...journal,
+        createdAt: journal.createdAt.toISOString(),
+        updatedAt: journal.updatedAt.toISOString()
+      }));
+      localStorage.setItem(JOURNALS_KEY, JSON.stringify(journalsToSave));
+    } catch (error) {
+      console.error('Error saving to localStorage:', error);
+      throw new Error('Failed to save journal to localStorage');
+    }
+    
+    return savedJournal;
+  } catch (error) {
+    console.error('Error in saveJournal:', error);
+    throw new Error(`Failed to save journal: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
 
 export const getJournals = (): Journal[] => {
-  return loadJournals().sort((a, b) => 
-    b.updatedAt.getTime() - a.updatedAt.getTime()
-  );
+  try {
+    const journals = loadJournals();
+    // Sort by updatedAt in descending order (newest first)
+    return journals
+      .filter(journal => journal.title && journal.id) // Ensure valid journals
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  } catch (error) {
+    console.error('Error getting journals:', error);
+    return [];
+  }
+};
+
+export const deleteJournal = (id: string): boolean => {
+  try {
+    const journals = loadJournals();
+    if (!journals || !Array.isArray(journals)) {
+      console.error('Invalid journals data');
+      return false;
+    }
+
+    const newJournals = journals.filter(journal => journal.id !== id);
+    if (newJournals.length === journals.length) {
+      console.error('Journal not found:', id);
+      return false;
+    }
+    
+    saveJournals(newJournals);
+    return true;
+  } catch (error) {
+    console.error('Error deleting journal:', error);
+    return false;
+  }
 };
 
 export const getJournal = (id: string): Journal | undefined => {
   const journals = loadJournals();
   return journals.find(journal => journal.id === id);
-};
-
-export const deleteJournal = (id: string): boolean => {
-  const journals = loadJournals();
-  const newJournals = journals.filter(journal => journal.id !== id);
-  
-  if (newJournals.length === journals.length) return false;
-  
-  saveJournals(newJournals);
-  return true;
 };
 
 // Simulate AI response (in a real app, this would call an API)
@@ -305,7 +364,6 @@ export const handleChatInteraction = async (spaceId: string, userId: string, use
 
   return [userMsg!, aiMsg];
 };
-
 
 
 
@@ -702,10 +760,5 @@ const getAllUserCourses = (): UserCourse[] => {
     return [];
   }
 };
-
-
-
-
-
 
 export type {Journal , Canvas, ChatSpace, ChatMessage};

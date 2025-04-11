@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Code, 
   PenBox, 
@@ -51,21 +51,36 @@ export function Sidebar() {
   const [dialogOpen, setDialogOpen] = useState<string | null>(null);
   const { toast } = useToast();
   
-  // Load spaces and journals on mount
+  // Add this useEffect near the top of your component
   useEffect(() => {
-    loadSpaces();
-    loadJournals();
-  }, []);
+    const initializeData = async () => {
+      await loadJournals();
+      await loadSpaces();
+    };
+    
+    initializeData();
+  }, []); // Empty dependency array for initial load only
   
   const loadSpaces = () => {
     const loadedSpaces = getSpaces();
     setSpaces(loadedSpaces.map(space => ({ id: space.id, name: space.name })));
   };
   
-  const loadJournals = () => {
-    const loadedJournals = getJournals();
-    setJournals(loadedJournals);
-  };
+  const loadJournals = useCallback(() => {
+    try {
+      const loadedJournals = getJournals();
+      if (Array.isArray(loadedJournals)) {
+        setJournals(loadedJournals);
+      }
+    } catch (error) {
+      console.error('Error loading journals:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load journals",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
   
   const handleCreateSpace = (name: string) => {
     const newSpace = createSpace(name);
@@ -185,18 +200,22 @@ export function Sidebar() {
 
         {!isCollapsed && journalsOpen && (
           <div className="mt-2 pl-2 space-y-1 max-h-[150px] overflow-y-auto">
-            <div 
-              className="flex items-center gap-2 p-2 text-sm hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer"
-              onClick={() => setCreateDialogOpen('journal')}
-            >
-              <Plus size={14} />
-              <span>Create Journal</span>
-            </div>
             {journals.map((journal) => (
               <div
                 key={journal.id}
-                className={`flex items-center gap-2 p-2 text-sm rounded-md cursor-pointer ${location.pathname === '/journals' && location.state?.activeJournalId === journal.id ? "bg-accent text-accent-foreground" : "hover:bg-accent hover:text-accent-foreground"}`}
-                onClick={() => handleNavigateToJournal(journal.id)}
+                className={`flex items-center gap-2 p-2 text-sm rounded-md cursor-pointer ${
+                  location.pathname === '/journals' && 
+                  location.state?.activeJournalId === journal.id ? 
+                  "bg-accent text-accent-foreground" : 
+                  "hover:bg-accent hover:text-accent-foreground"
+                }`}
+                onClick={() => {
+                  handleNavigateToJournal(journal.id);
+                  if (isMobile) {
+                    // Close mobile sidebar if needed
+                    setIsCollapsed(true);
+                  }
+                }}
               >
                 <FileText size={14} />
                 <span className="truncate flex-1">{journal.title}</span>
@@ -329,8 +348,34 @@ export function Sidebar() {
         open={createDialogOpen === 'journal'}
         onClose={() => setCreateDialogOpen(null)}
         onSubmit={(name) => {
-          navigate('/journals', { state: { createNew: true, newTitle: name } });
-          setCreateDialogOpen(null);
+          try {
+            setCreateDialogOpen(null);
+            
+            // Use replace to avoid navigation stack issues
+            navigate('/journals', { 
+              replace: true,
+              state: { 
+                createNew: true, 
+                newTitle: name,
+                timestamp: Date.now() 
+              }
+            });
+
+            // Force immediate loading of journals
+            loadJournals();
+            
+            toast({
+              title: "Success",
+              description: "New journal created successfully",
+            });
+          } catch (error) {
+            console.error('Error creating journal:', error);
+            toast({
+              title: "Error",
+              description: "Failed to create journal",
+              variant: "destructive",
+            });
+          }
         }}
         title="Create New Journal"
         description="Enter a title for your new journal."
