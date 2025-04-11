@@ -339,49 +339,7 @@ const Index = () => {
                 onSendMessage={handleSendMessage} 
                 placeholder={currentSpace ? "Type your message here..." : "Create a new chat to start messaging"}
               />
-              <div className="flex justify-end">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="text-xs">
-                      {/* <Upload className="h-3 w-3 mr-1" /> Add Media */}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-48 p-2">
-                    <div className="grid gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="justify-start"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <Image className="mr-2 h-4 w-4" /> Insert Image
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="justify-start"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        {/* <File className="mr-2 h-4 w-4" /> Upload File */}
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="justify-start"
-                      >
-                        {/* <MapPin className="mr-2 h-4 w-4" /> Share Location */}
-                      </Button>
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        className="hidden" 
-                        onChange={handleFileUpload}
-                        accept="image/*,application/pdf,text/plain"
-                      />
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
+              <div className="flex justify-end"></div>
             </div>
           </div>
         </div>
