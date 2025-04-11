@@ -141,7 +141,7 @@ export function Sidebar() {
             </Link>
             <Link to="/canvas" className={`flex items-center gap-2 p-2 rounded-md cursor-pointer ${isActive("/canvas") ? "bg-accent text-accent-foreground" : "hover:bg-accent hover:text-accent-foreground"}`}>
               <PenBox size={16} />
-              <span>Open Canvas</span>
+              <span>WHITEBOARD</span>
             </Link>
             <Link to="/pdf-chat" className={`flex items-center gap-2 p-2 rounded-md cursor-pointer ${isActive("/pdf-chat") ? "bg-accent text-accent-foreground" : "hover:bg-accent hover:text-accent-foreground"}`}>
               <FileText size={16} />

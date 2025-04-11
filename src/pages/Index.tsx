@@ -307,13 +307,11 @@ const Index = () => {
             <div className="w-full mt-6 md:mt-10 flex-grow flex items-center justify-center">
               {showWelcome ? (
                 <div className="text-center max-w-md mx-auto">
-                  <h2 className="text-xl font-medium mb-4">Welcome to Praxis</h2>
+                  {/* <h2 className="text-xl font-medium mb-4">Welcome to Praxis</h2>
                   <p className="mb-8 text-muted-foreground">
                     Start by creating a new chat or selecting an existing one from the sidebar.
-                  </p>
-                  <Button onClick={() => setCreateDialogOpen(true)}>
-                    {/* <Plus className="mr-2 h-4 w-4" /> Create New Chat */}
-                  </Button>
+                  </p> */}
+
                 </div>
               ) : (
                 <p className="text-center text-muted-foreground">
