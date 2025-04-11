@@ -292,14 +292,7 @@ export function Sidebar() {
       ) : (
       <div className="mt-auto p-4 space-y-2">
           <div 
-            className="flex items-center gap-2 p-2 text-sm hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer"
-            onClick={() => setDialogOpen('premium')}
-          >
-            <CircleDollarSign size={16} />
-            <span>Get Premium</span>
-          </div>
-          <div 
-            className="flex items-center gap-2 p-2 text-sm hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer"
+            className="flex items-center gap-0.5 p-0.5 text-xs hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer"
             onClick={() => setDialogOpen('settings')}
           >
             <Settings size={12} />
@@ -323,7 +316,7 @@ export function Sidebar() {
             onClick={handleSignOut}
 >
             <LogOut size={16} />
-            <span>Exit to Home</span>
+            <span>Sign out</span>
           </div>
         </div>
       )}
