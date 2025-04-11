@@ -22,6 +22,12 @@ import {
 } from "@/components/ui/dialog";
 import { CreateItemDialog } from '@/components/create-item-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+// import { ChatMessage } from '@/components/chat-message';
+// import { addMessageToSpace, fetchMessagesFromSpace } from "../firebase/firebaseHelpers.js";
+import { doc, collection } from "firebase/firestore";
+import { db } from "../firebase/firebase"; // adjust this to your path
+
+
 
 const Index = () => {
   const isMobile = useIsMobile();
@@ -127,96 +133,105 @@ const Index = () => {
     });
   };
 
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+
+  if (!currentUser) {
+    toast({
+      title: "Authentication Error",
+      description: "User is not authenticated.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+
+  // This creates a random document reference and uses its .id (without saving anything).
+  const generateFirestoreId = () => {
+    return doc(collection(db, "_")).id;
+  };
+
+  // const messageIdGenerated = generateFirestoreId();
+
   const handleSendMessage = async (message: string) => {
-    // If no active space, create one first
     if (!currentSpace) {
       setCreateDialogOpen(true);
       return;
     }
-
-  // const handleSendMessage = async (message: string) => {
-  //   if (!currentSpace) {
-  //     toast({
-  //       title: "Error",
-  //       description: "No active chat space found.",
-  //       variant: "destructive",
-  //     });
-  //     return;
-  //   }
-
-  // Hide welcome cards when first message is sent
+  
     setShowWelcome(false);
     setShowTools(false);
-
-    // Add user message
-    const userMessage = addMessageToSpace(currentSpace.id, message, false);
-
-    if (!userMessage) {
-      toast({
-        title: "Error",
-        description: "Failed to send message.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // update ui immediately
-    setCurrentSpace({
-      ...currentSpace,
-      messages: [...currentSpace.messages, userMessage],
-      updatedAt: new Date()
-    });
-
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
-
-    if (!currentUser) {
-      toast({
-        title: "Authentication Error",
-        description: "User is not authenticated.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+  
     const userId = currentUser.uid;
-    const username = currentUser.displayName || currentUser.email || currentUser.uid;
-
-
+  
+    // 🟢 Optimistic UI update
+    const localUserMessage: ChatMessage = {
+      id: generateFirestoreId(),
+      content: message,
+      isAi: false,
+      timestamp: new Date(),
+    };
+  
+    setCurrentSpace(prev =>
+      prev
+        ? {
+            ...prev,
+            messages: [...prev.messages, localUserMessage],
+            updatedAt: new Date(),
+          }
+        : null
+    );
+  
     try {
-      const aiResponseText = await getAiResponse(userId, message);
-      const aiMessage = addMessageToSpace(currentSpace.id, aiResponseText, true);
-
-      if (aiMessage) {
-        setCurrentSpace(prev => prev ? {
-          ...prev,
-          messages: [...prev.messages, aiMessage],
-          updatedAt: new Date()
-        } : null);
-
-        setSpaces(prevSpaces => {
-          const updatedSpaces = prevSpaces.map(space => 
-            space.id === currentSpace.id 
-              ? { ...space, updatedAt: new Date() } 
-              : space
-          );
-          return updatedSpaces;
-        });
-
-        if (currentSpace) {
-          const canvases = getCanvases(currentSpace.id);
-          setRelatedCanvases(canvases);
-        }
+      // 📝 Store user message in Firestore
+      await addMessageToSpace(userId, currentSpace.id, message, false);
+  
+      // 🤖 Get AI response
+      const aiText = await getAiResponse(userId, currentSpace.id, message);
+  
+      // 🟢 Optimistic AI message update
+      const localAiMessage: ChatMessage = {
+        id: generateFirestoreId(),
+        content: aiText,
+        isAi: true,
+        timestamp: new Date(),
+      };
+  
+      setCurrentSpace(prev =>
+        prev
+          ? {
+              ...prev,
+              messages: [...prev.messages, localAiMessage],
+              updatedAt: new Date(),
+            }
+          : null
+      );
+  
+      setSpaces(prevSpaces =>
+        prevSpaces.map(space =>
+          space.id === currentSpace.id
+            ? { ...space, updatedAt: new Date() }
+            : space
+        )
+      );
+  
+      if (currentSpace) {
+        const canvases = getCanvases(currentSpace.id);
+        setRelatedCanvases(canvases);
       }
+  
+      // 📝 Store AI message in Firestore
+      await addMessageToSpace(userId, currentSpace.id, aiText, true);
     } catch (error) {
-      console.error('Error getting AI response:', error);
+      console.error("Error during chat interaction:", error);
       toast({
         title: "Error",
-        description: "Failed to get AI response.",
+        description: "Something went wrong during the chat interaction.",
         variant: "destructive",
       });
     }
   };
+  
 
   const handleViewCanvas = (canvasId: string) => {
     toast({
@@ -292,13 +307,11 @@ const Index = () => {
             <div className="w-full mt-6 md:mt-10 flex-grow flex items-center justify-center">
               {showWelcome ? (
                 <div className="text-center max-w-md mx-auto">
-                  <h2 className="text-xl font-medium mb-4">Welcome to Praxis</h2>
+                  {/* <h2 className="text-xl font-medium mb-4">Welcome to Praxis</h2>
                   <p className="mb-8 text-muted-foreground">
                     Start by creating a new chat or selecting an existing one from the sidebar.
-                  </p>
-                  <Button onClick={() => setCreateDialogOpen(true)}>
-                    {/* <Plus className="mr-2 h-4 w-4" /> Create New Chat */}
-                  </Button>
+                  </p> */}
+
                 </div>
               ) : (
                 <p className="text-center text-muted-foreground">
