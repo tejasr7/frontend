@@ -253,28 +253,8 @@ const CanvasPage = () => {
               <div className="text-muted-foreground">Draw something on the canvas above and click "Analyze with Gemini" to get an AI interpretation.</div>
             )}
           </div>
-
-          {analysisResults.length > 0 && (
-            <div className="mt-4 p-4 border rounded-md bg-blue-50 shadow-sm">
-              <h3 className="font-medium mb-2 text-blue-800">Solution</h3>
-              <ul className="space-y-2">
-                {analysisResults.map((result, i) => (
-                  <li 
-                    key={i} 
-                    className={`p-2 rounded ${i === analysisResults.length - 1 
-                      ? 'bg-blue-100 font-bold text-blue-900' 
-                      : 'text-gray-800'}`}
-                  >
-                    {result}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       </main>
-    </div>
-  );
     </div>
   );
 };
