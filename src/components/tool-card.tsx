@@ -37,9 +37,7 @@ export function ToolCard({ icon, title, description, tag }: ToolCardProps) {
           <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
           <p className="font-medium">{description}</p>
         </div>
-        <div className="mt-auto">
-          <p className="text-sm text-muted-foreground">Tag {tag} to use this tool</p>
-        </div>
+        
       </div>
     </div>
   );

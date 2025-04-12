@@ -141,7 +141,7 @@ export function Sidebar() {
             </Link>
             <Link to="/canvas" className={`flex items-center gap-2 p-2 rounded-md cursor-pointer ${isActive("/canvas") ? "bg-accent text-accent-foreground" : "hover:bg-accent hover:text-accent-foreground"}`}>
               <PenBox size={16} />
-              <span>WHITEBOARD</span>
+              <span>Open Canvas</span>
             </Link>
             <Link to="/pdf-chat" className={`flex items-center gap-2 p-2 rounded-md cursor-pointer ${isActive("/pdf-chat") ? "bg-accent text-accent-foreground" : "hover:bg-accent hover:text-accent-foreground"}`}>
               <FileText size={16} />
@@ -292,21 +292,21 @@ export function Sidebar() {
       ) : (
       <div className="mt-auto p-4 space-y-2">
           <div 
-            className="flex items-center gap-0.5 p-0.5 text-xs hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer"
+            className="flex items-center gap-2 p-2 text-sm hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer"
             onClick={() => setDialogOpen('settings')}
           >
             <Settings size={12} />
             <span>Settings</span>
           </div>
           <div 
-            className="flex items-center gap-0.5 p-0.5 text-xs hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer"
+            className="flex items-center gap-2 p-2 text-sm hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer"
             onClick={() => setDialogOpen('report-bug')}
           >
             <AlertCircle size={12} />
             <span>Report Bug</span>
           </div>
           <div 
-            className="flex items-center gap-0.5 p-0.5 text-xs hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer"
+            className="flex items-center gap-2 p-2 text-sm hover:bg-accent hover:text-accent-foreground rounded-md cursor-pointer"
             onClick={() => setDialogOpen('help')}
           >
             <HelpCircle size={12} />
