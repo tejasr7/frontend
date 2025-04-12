@@ -293,7 +293,44 @@ export const deleteJournal = (id: string): boolean => {
 };
 
 // Simulate AI response (in a real app, this would call an API)
-export const getAiResponse = async (userId: string,   spaceId: string, message: string): Promise<string> => {
+export const analyzeCanvasDrawing = async (
+  imageData: string, 
+  mode: 'math' | 'text' | 'auto' = 'auto'
+): Promise<string[]> => {
+  try {
+    const response = await fetch("http://localhost:8000/analyze-drawing", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        image: imageData,
+        mode: mode,
+        prompt: "Analyze this drawing and describe what it contains"
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.error || "Analysis failed");
+    }
+
+    return [data.analysis];
+  } catch (error) {
+    console.error("Error analyzing drawing:", error);
+    return [
+      "Error analyzing drawing:",
+      error instanceof Error ? error.message : "Unknown error occurred"
+    ];
+  }
+};
+
+export const getAiResponse = async (userId: string, spaceId: string, message: string): Promise<string> => {
   // Simulate network delay
   // await new Promise(resolve => setTimeout(resolve, 1000));
 
