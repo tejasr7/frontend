@@ -8,6 +8,7 @@ import { Image, Upload, File, MapPin } from "lucide-react";
 
 interface InputPromptProps {
   onSendMessage?: (message: string) => void;
+  onSendImage?: (imageBase64: string) => void;
   placeholder?: string;
   disabled?: boolean;
 }
