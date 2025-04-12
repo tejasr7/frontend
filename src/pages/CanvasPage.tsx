@@ -2,116 +2,198 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Sidebar } from "@/components/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { saveCanvas, getSpaces } from "@/services/chat-service";
 import { useToast } from "@/hooks/use-toast";
-import { Save, Wand2 } from "lucide-react";
-import { Tldraw, exportToBlob } from '@tldraw/tldraw';
+import { Wand2, Download, Save } from "lucide-react";
+import { Tldraw, exportToBlob, exportToSvg, TldrawEditor } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
+import { saveCanvas, getSpaces } from "@/services/chat-service";
 
 const CanvasPage = () => {
   const isMobile = useIsMobile();
-  const [canvasName, setCanvasName] = useState('Untitled Canvas');
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string>('');
-  const [spaces, setSpaces] = useState<Array<{ id: string; name: string }>>([]);
-  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [geminiResponse, setGeminiResponse] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
-  const tldrawRef = useRef<any>(null);
+  const tldrawRef = useRef<TldrawEditor | null>(null);
 
-  useEffect(() => {
-    // Fetch available spaces
-    setSpaces(getSpaces().map(space => ({ id: space.id, name: space.name })));
-  }, []);
-
-  const handleSaveCanvas = async () => {
+  // Function to capture and export the canvas content as base64
+  const captureCanvasAsBase64 = async () => {
+    if (!tldrawRef.current) {
+      toast({
+        title: "Canvas Not Ready",
+        description: "The drawing canvas is not fully loaded. Please try again.",
+        variant: "destructive"
+      });
+      return null;
+    }
+    
     try {
-      if (!tldrawRef.current) return;
+      // Get the current editor instance from the ref
+      const editor = tldrawRef.current;
       
+      // Export Tldraw canvas to PNG blob
       const blob = await exportToBlob({
-        editor: tldrawRef.current.editor,
+        editor,
         format: 'png',
         quality: 1,
+        scale: 2, // Higher scale for better quality
       });
       
-      const reader = new FileReader();
-      reader.readAsDataURL(blob);
-      reader.onloadend = () => {
-        const imageData = reader.result as string;
-        saveCanvas(canvasName, imageData, selectedSpaceId || undefined);
-        toast({
-          title: "Canvas Saved",
-          description: `"${canvasName}" has been saved successfully.`,
-        });
-        setSaveDialogOpen(false);
-      };
+      // Convert blob to base64
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          // Result is the full data URL (e.g., "data:image/png;base64,...")
+          const base64Image = reader.result as string;
+          resolve(base64Image);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Error capturing canvas:', error);
+      toast({
+        title: "Export Failed",
+        description: "Could not export the canvas as an image. Please try again.",
+        variant: "destructive"
+      });
+      return null;
+    }
+  };
+
+  // Function to save the canvas to backend
+  const saveCanvasToBackend = async (canvasName = '') => {
+    setIsSaving(true);
+    
+    try {
+      // If no name provided, generate one
+      const finalName = canvasName || `Canvas-${new Date().toISOString().substring(0, 19).replace(/[:.]/g, '-')}`;
+      
+      // Capture the canvas as base64
+      const imageData = await captureCanvasAsBase64();
+      
+      if (!imageData) {
+        throw new Error('Failed to capture canvas data');
+      }
+      
+      // Save to backend
+      await saveCanvas(finalName, imageData, undefined);
+      
+      toast({
+        title: "Canvas Saved",
+        description: `Your drawing has been saved as "${finalName}"`,
+      });
     } catch (error) {
       console.error('Error saving canvas:', error);
       toast({
-        title: "Error",
-        description: "Failed to save canvas. Please try again.",
+        title: "Save Failed",
+        description: "Could not save your drawing. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Function to save the canvas image locally
+  const downloadImage = async () => {
+    try {
+      const imageData = await captureCanvasAsBase64();
+      
+      if (!imageData) {
+        throw new Error('Failed to capture canvas data');
+      }
+      
+      // Create an anchor element for download
+      const link = document.createElement('a');
+      
+      // Set the download attribute with a filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      link.download = `canvas-${timestamp}.png`;
+      
+      // Set the href to the image data
+      link.href = imageData;
+      
+      // Append to the body
+      document.body.appendChild(link);
+      
+      // Trigger the download
+      link.click();
+      
+      // Clean up
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Image Downloaded",
+        description: "Your drawing has been saved to your downloads folder.",
+      });
+    } catch (error) {
+      console.error('Error downloading image:', error);
+      toast({
+        title: "Download Failed",
+        description: "Could not download the image. Please try again.",
         variant: "destructive"
       });
     }
   };
 
-  const analyzeWithGemini = async () => {
-    if (!tldrawRef.current) return;
-    
+  const analyzeCanvas = async () => {
     setIsAnalyzing(true);
     setGeminiResponse('');
     
     try {
-      // Export Tldraw canvas to image blob
-      const blob = await exportToBlob({
-        editor: tldrawRef.current.editor,
-        format: 'png',
-        quality: 1,
-      });
+      // Capture the canvas as base64
+      const imageData = await captureCanvasAsBase64();
       
-      // Convert blob to base64
-      const base64Image = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        reader.onloadend = () => {
-          resolve(reader.result as string);
-        };
-      });
+      // Make sure the image data is valid
+      if (!imageData) {
+        throw new Error('Error capturing canvas');
+      }
+
+      // Auto-save the canvas in the backend before analysis
+      const canvasName = `Drawing-${new Date().toISOString().substring(0, 19).replace(/[:.]/g, '-')}`;
+      await saveCanvas(canvasName, imageData, undefined);
       
-      // Extract just the base64 part (remove the data URL prefix)
-      const base64Data = base64Image.split(',')[1];
-      
-      // Call your backend API which will communicate with Gemini
-      const response = await fetch('/api/gemini', {
+      // Send to the backend for analysis
+      const response = await fetch('http://localhost:8000/canvas-analysis/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          image: base64Data,
-          mimeType: 'image/png'
+        body: JSON.stringify({ 
+          image_data: imageData,
+          prompt: "Analyze this drawing and describe what you see in detail. If it appears to be a diagram, chart, or sketch, explain its meaning and purpose. If it contains text, include that in your analysis."
         }),
       });
-      
+
       if (!response.ok) {
-        throw new Error('Failed to analyze image');
+        throw new Error(`Server responded with status: ${response.status}`);
       }
+
+      const result = await response.json();
+      console.log('Analysis result:', result);
+      setGeminiResponse(result.analysis || 'No analysis available');
       
-      const data = await response.json();
-      setGeminiResponse(data.text || 'No description available');
-    } catch (error) {
-      console.error('Error analyzing drawing:', error);
       toast({
-        title: "Error",
-        description: "Failed to analyze drawing. Please try again.",
+        title: "Analysis Complete",
+        description: "Your drawing has been analyzed and saved successfully.",
+      });
+    } catch (error) {
+      console.error('Error analyzing canvas:', error);
+      toast({
+        title: "Analysis Failed",
+        description: `Could not analyze drawing: ${error.message}`,
         variant: "destructive"
       });
+      setGeminiResponse('Error analyzing drawing. Please try again.');
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  // Handle the tldraw editor instance when it's loaded
+  const handleMount = (editor: TldrawEditor) => {
+    tldrawRef.current = editor;
   };
 
   return (
@@ -123,56 +205,41 @@ const CanvasPage = () => {
 
           {/* Tldraw Canvas Editor */}
           <div className="mb-6 border border-gray-300 rounded-md overflow-hidden" style={{ height: '65vh' }}>
-            <Tldraw ref={tldrawRef} />
+            <Tldraw onMount={handleMount} />
           </div>
 
           {/* Controls */}
-          <div className="mb-4 flex flex-wrap gap-2 items-center">
-            <Button 
-              onClick={analyzeWithGemini} 
-              variant="outline" 
+          <div className="mb-4 flex flex-wrap gap-2 items-center justify-between">
+            <div className="flex gap-2 flex-wrap">
+              <Button 
+                onClick={analyzeCanvas} 
+                variant="default" 
+                size="sm"
+                disabled={isAnalyzing}
+              >
+                <Wand2 className="mr-2 h-4 w-4" />
+                {isAnalyzing ? 'Analyzing...' : 'Analyze with Gemini'}
+              </Button>
+              
+              {/* <Button
+                onClick={() => saveCanvasToBackend()}
+                variant="secondary"
+                size="sm"
+                disabled={isSaving}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {isSaving ? 'Saving...' : 'Save Canvas'}
+              </Button> */}
+            </div>
+            
+            <Button
+              onClick={downloadImage}
+              variant="outline"
               size="sm"
-              disabled={isAnalyzing}
             >
-              <Wand2 className="mr-2 h-4 w-4" />
-              {isAnalyzing ? 'Analyzing...' : 'Analyze with Gemini'}
+              <Download className="mr-2 h-4 w-4" />
+              Download PNG
             </Button>
-
-            {/* <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="ml-auto" size="sm">
-                  <Save className="mr-2 h-4 w-4" /> Save Canvas
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Save Canvas</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="name" className="text-right">Name</label>
-                    <Input id="name" value={canvasName} onChange={e => setCanvasName(e.target.value)} className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <label htmlFor="space" className="text-right">Space (Optional)</label>
-                    <Select value={selectedSpaceId} onValueChange={setSelectedSpaceId}>
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Select a space" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">None</SelectItem>
-                        {spaces.map(space => (
-                          <SelectItem key={space.id} value={space.id}>{space.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button onClick={handleSaveCanvas}>Save</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog> */}
           </div>
 
           {/* Display Gemini Analysis Result */}
@@ -183,7 +250,7 @@ const CanvasPage = () => {
             ) : geminiResponse ? (
               <div className="whitespace-pre-wrap">{geminiResponse}</div>
             ) : (
-              <div className="text-muted-foreground">Draw something and click "Analyze with Gemini"</div>
+              <div className="text-muted-foreground">Draw something on the canvas above and click "Analyze with Gemini" to get an AI interpretation.</div>
             )}
           </div>
 
