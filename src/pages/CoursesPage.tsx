@@ -82,6 +82,8 @@ const CoursesPage = () => {
 
     // Dynamically set video IDs based on the selected course
     const courseVideoMap: Record<string, string[]> = {
+
+
       "AI": ["MqffbpjhriQ"],
       "Data Science": ["ua-CiDNNj30"],
       "Cyber Security": ["8S69EkL39zc"],
