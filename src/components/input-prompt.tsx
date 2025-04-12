@@ -70,7 +70,7 @@ export function InputPrompt({
   };
 
   return (
-    <div className="border rounded-lg p-4 bg-background shadow-sm">
+    <div className="border rounded-lg p-4 bg-background shadow-sm md:p-6">
       <div className="mb-2 flex items-center gap-2">
         {/* <span className="text-sm text-muted-foreground">Make a plot of...</span>
         <div className="p-1 px-2 bg-muted rounded-md text-xs text-muted-foreground">@DeepTutor</div> */}
@@ -80,14 +80,14 @@ export function InputPrompt({
         onChange={(e) => setMessage(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className="min-h-[60px] mb-2 resize-none"
+        className="min-h-[60px] mb-2 resize-none text-sm md:text-base"
         disabled={disabled}
       />
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-2">
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="text-xs">
-              <Upload className="h-3 w-3 mr-1" /> Add Media
+            <Button variant="outline" size="sm" className="text-xs md:text-sm">
+              <Upload className="h-3 w-3 mr-1 md:h-4 md:w-4" /> Add Media
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-48 p-2">
@@ -121,16 +121,14 @@ export function InputPrompt({
                 className="hidden" 
                 onChange={handleFileUpload}
                 accept="image/*,application/pdf,text/plain"
+                title="Upload a file"
               />
             </div>
           </PopoverContent>
         </Popover>
-        <div className="flex items-center gap-2">
-          {/* <p className="text-xs text-muted-foreground">
-            Feynman may make mistakes. Check important info and please report any bugs.
-          </p> */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
           <button 
-            className="p-2 bg-primary rounded-lg text-primary-foreground"
+            className="p-2 bg-primary rounded-lg text-primary-foreground w-full md:w-auto"
             onClick={handleSendMessage}
             disabled={isLoading || !message.trim() || disabled}
           >
