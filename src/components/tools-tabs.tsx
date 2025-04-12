@@ -9,7 +9,6 @@ export function ToolsTabs() {
   return (
     <Tabs defaultValue="interactive-tools" className="w-full" onValueChange={setActiveTab}>
       <TabsList className=" w-300px justify-center">
-        <TabsTrigger value="interactive-tools">Interactive Tools</TabsTrigger>
         
       </TabsList>
       <div className="mt-8">
