@@ -79,8 +79,20 @@ const CoursesPage = () => {
 
   const handleContinueLearning = (course: Course) => {
     setSelectedCourse(course);
-    // Replace with actual video IDs for the course
-    setVideoIds(["LvC68w9JS4Y"]); // Example video ID
+
+    // Dynamically set video IDs based on the selected course
+    const courseVideoMap: Record<string, string[]> = {
+
+
+      "AI": ["MqffbpjhriQ"],
+      "Data Science": ["ua-CiDNNj30"],
+      "Cyber Security": ["8S69EkL39zc"],
+      "Machine Learning": ["LvC68w9JS4Y"], // Already in the UI
+      "Data Analyst": ["ZMMxaMOuMfY"],
+      "Web Development": ["R6RX2Zx96fE"],
+    };
+
+    setVideoIds(courseVideoMap[course.id] || []); // Default to an empty array if no videos are found
   };
 
   return (
