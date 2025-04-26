@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sidebar } from "@/components/sidebar";
+import { SidebarShadcn } from "@/components/SidebarShadcn";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Search, BookOpen, Clock } from "lucide-react";
 
 const CoursesPage = () => {
   const [courses, setCourses] = useState<Course[]>([]);
-  const [enrolledCourses, setEnrolledCourses] = useState<Array<UserCourse & { course: Course }>>([]);
+  const [enrolledCourses, setEnrolledCourses] = useState<Array<UserCourse & {course: Course}>>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeDomain, setActiveDomain] = useState('all');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
@@ -21,19 +21,31 @@ const CoursesPage = () => {
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const userProfile = getUserProfile();
-
-  const loadEnrolledCourses = React.useCallback(() => {
+  
+  useEffect(() => {
+    // Clear localStorage for courses to ensure updated list is loaded
+    localStorage.removeItem('available-courses');
+    loadCourses();
+    loadEnrolledCourses();
+  }, []);
+  
+  const loadCourses = () => {
+    const allCourses = getCourses();
+    setCourses(allCourses);
+  };
+  
+  const loadEnrolledCourses = () => {
     const userEnrollments = getUserCourses(userProfile.id);
     const enrichedCourses = userEnrollments
       .map(enrollment => {
         const course = getCourses().find(c => c.id === enrollment.courseId);
         return course ? { ...enrollment, course } : null;
       })
-      .filter(Boolean) as Array<UserCourse & { course: Course }>;
-
+      .filter(Boolean) as Array<UserCourse & {course: Course}>;
+    
     setEnrolledCourses(enrichedCourses);
   };
-
+  
   const handleEnroll = (courseId: string) => {
     enrollInCourse(courseId, userProfile.id);
     toast({
@@ -42,17 +54,17 @@ const CoursesPage = () => {
     });
     loadEnrolledCourses();
   };
-
+  
   const isEnrolled = (courseId: string) => {
     return enrolledCourses.some(ec => ec.courseId === courseId);
   };
-
+  
   // Get all unique domains from courses
-  const domains = ['all', ...new Set(courses.map(course => course.domain))];
+  const domains = ['all', ...new Set(courses.map(course => course.domain))]; // Ensure 'Mobile Development' is included
 
   // Filter courses based on search query and active domain
   const filteredCourses = courses.filter(course => {
-    const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
       course.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesDomain = activeDomain === 'all' || course.domain === activeDomain;
 
@@ -69,25 +81,21 @@ const CoursesPage = () => {
 
   const handleContinueLearning = (course: Course) => {
     setSelectedCourse(course);
-
-    // Dynamically set video IDs based on the selected course
     const courseVideoMap: Record<string, string[]> = {
-
-
       "AI": ["MqffbpjhriQ"],
       "Data Science": ["ua-CiDNNj30"],
       "Cyber Security": ["8S69EkL39zc"],
-      "Machine Learning": ["LvC68w9JS4Y"], // Already in the UI
+      "Machine Learning": ["LvC68w9JS4Y?si=EdaqBEH3k06ObTri"],
       "Data Analyst": ["ZMMxaMOuMfY"],
-      "Web Development": ["R6RX2Zx96fE"],
+      "Web Development": ["HVjjoMvutj4?si=oTi1f_tZY1RKo_90"],
+      "Mobile Development": ["f8Z9JyB2EIE?si=kpdLGbPmTfCPxbiu"], // Updated video
     };
-
-    setVideoIds(courseVideoMap[course.id] || []); // Default to an empty array if no videos are found
+    setVideoIds(courseVideoMap[course.domain] || []);
   };
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar />
+      <SidebarShadcn />
       <main className={`flex-1 p-4 md:p-10 ${isMobile ? 'pt-16' : ''}`}>
         <div className="mx-auto max-w-6xl">
           <h1 className="text-2xl font-bold tracking-tight mb-6">Courses</h1>
@@ -121,7 +129,7 @@ const CoursesPage = () => {
                 <TabsTrigger value="browse">Browse Courses</TabsTrigger>
                 <TabsTrigger value="my-courses">My Courses</TabsTrigger>
               </TabsList>
-
+              
               <TabsContent value="browse" className="mt-6 space-y-6">
                 <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
                   <div className="relative w-full md:w-[300px]">
@@ -133,7 +141,7 @@ const CoursesPage = () => {
                       className="pl-8"
                     />
                   </div>
-
+                  
                   <div className="flex flex-wrap gap-2">
                     {domains.map((domain) => (
                       <Button
@@ -147,14 +155,14 @@ const CoursesPage = () => {
                     ))}
                   </div>
                 </div>
-
+                
                 {filteredCourses.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredCourses.map((course) => (
                       <Card key={course.id} className="overflow-hidden flex flex-col">
                         <div className="aspect-video w-full overflow-hidden">
-                          <img
-                            src={course.imageUrl}
+                          <img 
+                            src={course.imageUrl} 
                             alt={course.title}
                             className="w-full h-full object-cover"
                           />
@@ -188,8 +196,8 @@ const CoursesPage = () => {
                               Already Enrolled
                             </Button>
                           ) : (
-                            <Button
-                              className="w-full"
+                            <Button 
+                              className="w-full" 
                               onClick={() => handleEnroll(course.id)}
                             >
                               Enroll Now
@@ -205,7 +213,7 @@ const CoursesPage = () => {
                   </div>
                 )}
               </TabsContent>
-
+              
               <TabsContent value="my-courses" className="mt-6">
                 {enrolledCourses.length > 0 ? (
                   <div className="space-y-6">
@@ -213,8 +221,8 @@ const CoursesPage = () => {
                       <Card key={course.id} className="overflow-hidden">
                         <div className="grid grid-cols-1 md:grid-cols-[250px_1fr] h-full">
                           <div className="aspect-video md:aspect-auto md:h-full overflow-hidden">
-                            <img
-                              src={course.imageUrl}
+                            <img 
+                              src={course.imageUrl} 
                               alt={course.title}
                               className="w-full h-full object-cover"
                             />
@@ -223,7 +231,7 @@ const CoursesPage = () => {
                             <h3 className="text-lg font-semibold">{course.title}</h3>
                             <p className="text-sm text-muted-foreground mt-1">{course.domain}</p>
                             <p className="text-sm mt-4">{course.description}</p>
-
+                            
                             <div className="mt-6">
                               <div className="flex justify-between text-sm mb-1">
                                 <span>Progress</span>
@@ -231,7 +239,7 @@ const CoursesPage = () => {
                               </div>
                               <Progress value={progress} className="h-2" />
                             </div>
-
+                            
                             <div className="flex gap-4 mt-6">
                               <Button className="flex-1" onClick={() => handleContinueLearning(course)}>
                                 Continue Learning

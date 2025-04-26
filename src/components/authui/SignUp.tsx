@@ -91,7 +91,7 @@ const SignUp: React.FC = () => {
           <img src={penIcon} alt="Pen Icon" style={{ height: "50px" }} />
         </div>
         <h4 className="text-center fw-bold">Sign Up</h4>
-        <p className="text-center text-muted">Welcome to QuestNote! Sign up to get started.</p>
+        <p className="text-center text-muted">Welcome to Klarity! Sign up to get started.</p>
 
         {/* Google Sign-Up */}
         <button

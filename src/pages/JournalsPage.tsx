@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Sidebar } from "@/components/sidebar";
+import { SidebarShadcn } from "@/components/SidebarShadcn";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -338,7 +338,7 @@ const JournalsPage = () => {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar />
+      <SidebarShadcn />
       <main className={`flex-1 p-4 md:p-10 ${isMobile ? 'pt-16' : ''}`}>
         <div className="mx-auto max-w-4xl">
           <div className="flex justify-between items-center mb-6">

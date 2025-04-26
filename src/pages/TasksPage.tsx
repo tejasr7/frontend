@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { Sidebar } from "@/components/sidebar";
+import { SidebarShadcn } from "@/components/SidebarShadcn";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -106,7 +105,7 @@ const TasksPage = () => {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar />
+      <SidebarShadcn />
       <main className={`flex-1 p-4 md:p-10 ${isMobile ? 'pt-16' : ''}`}>
         <div className="mx-auto max-w-5xl">
           <div className="flex justify-between items-center mb-6">

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sidebar } from "../components/sidebar";
+import { SidebarShadcn } from "@/components/SidebarShadcn";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -139,7 +139,7 @@ const ProfilePage = () => {
   if (loading) {
     return (
       <div className="flex min-h-screen bg-background">
-        <Sidebar />
+        <SidebarShadcn />
         <main className="flex-1 p-6 flex items-center justify-center">
           <div>Loading profile...</div>
         </main>
@@ -150,7 +150,7 @@ const ProfilePage = () => {
   if (!userProfile) {
     return (
       <div className="flex min-h-screen bg-background">
-        <Sidebar />
+        <SidebarShadcn />
         <main className="flex-1 p-6 flex items-center justify-center">
           <div>Error loading profile data</div>
         </main>
@@ -160,7 +160,7 @@ const ProfilePage = () => {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar />
+      <SidebarShadcn />
       <main className="flex-1 p-6">
         <div className="container max-w-5xl mx-auto">
           <h1 className="text-3xl font-bold mb-6">Your Account</h1>

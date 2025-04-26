@@ -52,7 +52,7 @@ export function UserHeader() {
   if (loading) {
     return (
       <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
-        <ThemeToggle />
+        {/* <ThemeToggle /> */}
         <Avatar className="w-8 h-8">
           <AvatarFallback>...</AvatarFallback>
         </Avatar>
@@ -61,19 +61,22 @@ export function UserHeader() {
   }
 
   return (
-    <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
-      <ThemeToggle />
-      <Link to="/profile">
-        <Avatar className="w-8 h-8 cursor-pointer">
-          <AvatarImage 
-            src={userProfile?.avatarUrl} 
-            alt={userProfile?.name || 'User'} 
-          />
-          <AvatarFallback>
-            {userProfile?.name?.substring(0, 2).toUpperCase() || 'US'}
-          </AvatarFallback>
-        </Avatar>
-      </Link>
+    // <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
+    //   {/* <ThemeToggle /> */}
+    //   <Link to="/profile">
+    //     <Avatar className="w-8 h-8 cursor-pointer">
+    //       <AvatarImage 
+    //         src={userProfile?.avatarUrl} 
+    //         alt={userProfile?.name || 'User'} 
+    //       />
+    //       <AvatarFallback>
+    //         {userProfile?.name?.substring(0, 2).toUpperCase() || 'US'}
+    //       </AvatarFallback>
+    //     </Avatar>
+    //   </Link>
+    // </div>
+    <div>
+      
     </div>
   );
 }

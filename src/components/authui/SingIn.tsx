@@ -74,7 +74,7 @@ const SignIn: React.FC = () => {
           <img src={paperPlaneIcon} alt="Paper Plane" style={{ height: "50px" }} />
         </div>
         <h4 className="text-center fw-bold">Sign In</h4>
-        <p className="text-center text-muted">Welcome back to QuestNote!</p>
+        <p className="text-center text-muted">Welcome back to Klarity!</p>
 
         {/* Google Sign-In */}
         <button

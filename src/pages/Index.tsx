@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
-import { Sidebar } from "@/components/sidebar";
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Image, Plus, MessageCircle } from "lucide-react";
+import { getAuth } from "firebase/auth";
+import { doc, collection } from "firebase/firestore";
+import { db } from "../firebase/firebase";
+
+// Components
+import { SidebarShadcn } from "@/components/SidebarShadcn";
 import { UserGreeting } from "@/components/user-greeting";
 import { ToolsTabs } from "@/components/tools-tabs";
 import { InputPrompt } from "@/components/input-prompt";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { ChatMessage } from "@/components/chat-message";
-import { addMessageToSpace, createSpace, getAiResponse, getSpaces, getCanvases } from "@/services/chat-service";
-import { ChatSpace, Canvas } from "@/models/chat";
-import { useToast } from '@/hooks/use-toast';
-import { Image } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getAuth } from "firebase/auth";
 import { 
   Dialog, 
   DialogContent, 
@@ -22,25 +22,122 @@ import {
 } from "@/components/ui/dialog";
 import { CreateItemDialog } from '@/components/create-item-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-// import { ChatMessage } from '@/components/chat-message';
-// import { addMessageToSpace, fetchMessagesFromSpace } from "../firebase/firebaseHelpers.js";
-import { doc, collection } from "firebase/firestore";
-import { db } from "../firebase/firebase"; // adjust this to your path
-import type { ChatMessage as ChatMessageType } from "@/models/chat";
-import { addMessageToSpace as addMessageToSpaceFirebaseHelpers } from "../firebase/firebaseHelpers"; // adjust this path
 
-// import { getUserSpaces } from "@/services/spaces";
+// Hooks & Services
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useToast } from '@/hooks/use-toast';
+import { 
+  addMessageToSpace, 
+  createSpace, 
+  getAiResponse, 
+  getSpaces, 
+  getCanvases 
+} from "@/services/chat-service";
 
+// Types
+import { ChatSpace, Canvas, ChatMessage as ChatMessageType } from "@/models/chat";
+
+// Custom hook for message handling
+const useMessageHandler = (currentSpace, setCurrentSpace, setSpaces, setRelatedCanvases, toast) => {
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+  
+  // Generate a Firestore-style ID
+  const generateFirestoreId = useCallback(() => {
+    return doc(collection(db, "_")).id;
+  }, []);
+
+  const sendMessage = useCallback(async (message) => {
+    if (!currentSpace || !currentUser) {
+      toast({
+        title: "Error",
+        description: currentUser ? "No active chat selected" : "User not authenticated",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    const userId = currentUser.uid;
+    
+    // Create optimistic user message
+    const localUserMessage = {
+      id: generateFirestoreId(),
+      content: message,
+      isAi: false,
+      timestamp: new Date(),
+    };
+    
+    // Update UI optimistically
+    setCurrentSpace(prev => prev ? {
+      ...prev,
+      messages: [...prev.messages, localUserMessage],
+      updatedAt: new Date()
+    } : null);
+    
+    try {
+      // Store message in Firestore
+      await addMessageToSpace(userId, currentSpace.id, message, false);
+      
+      // Get AI response
+      const aiResponseText = await getAiResponse(userId, currentSpace.id, message);
+      
+      // Create optimistic AI message
+      const localAiMessage = {
+        id: generateFirestoreId(),
+        content: aiResponseText,
+        isAi: true,
+        timestamp: new Date(),
+      };
+      
+      // Update UI with AI response
+      setCurrentSpace(prev => prev ? {
+        ...prev,
+        messages: [...prev.messages, localAiMessage],
+        updatedAt: new Date()
+      } : null);
+      
+      // Update spaces list to reflect most recent activity
+      setSpaces(prevSpaces => prevSpaces.map(space => 
+        space.id === currentSpace.id ? { ...space, updatedAt: new Date() } : space
+      ));
+      
+      // Update related canvases
+      if (currentSpace) {
+        const canvases = getCanvases(currentSpace.id);
+        setRelatedCanvases(canvases);
+      }
+      
+      // Store AI message in Firestore
+      await addMessageToSpace(userId, currentSpace.id, aiResponseText, true);
+      
+      return true;
+    } catch (error) {
+      console.error("Error during chat interaction:", error);
+      toast({
+        title: "Error",
+        description: "Something went wrong during the chat interaction.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  }, [currentSpace, currentUser, generateFirestoreId, setCurrentSpace, setSpaces, setRelatedCanvases, toast]);
+  
+  return { sendMessage };
+};
+
+// Main component
 const Index = () => {
   const isMobile = useIsMobile();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const messagesEndRef = useRef(null);
+  
+  // State
   const [spaces, setSpaces] = useState<ChatSpace[]>([]);
   const [currentSpace, setCurrentSpace] = useState<ChatSpace | null>(null);
   const [relatedCanvases, setRelatedCanvases] = useState<Canvas[]>([]);
   const [username, setUsername] = useState<string>("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { toast } = useToast();
-
   const [showWelcome, setShowWelcome] = useState(true);
   const [showTools, setShowTools] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -48,98 +145,76 @@ const Index = () => {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Custom hook
+  const { sendMessage } = useMessageHandler(
+    currentSpace, 
+    setCurrentSpace, 
+    setSpaces, 
+    setRelatedCanvases, 
+    toast
+  );
 
+  // Initial data loading
+  useEffect(() => {
+    const loadInitialData = () => {
+      const loadedSpaces = getSpaces();
+      setSpaces(loadedSpaces);
+      
+      const activeSpaceId = location.state?.activeSpaceId;
+      if (activeSpaceId) {
+        const targetSpace = loadedSpaces.find(space => space.id === activeSpaceId);
+        if (targetSpace) {
+          setCurrentSpace(targetSpace);
+          setShowWelcome(false);
+          if (targetSpace.messages.length > 0) {
+            setShowTools(false);
+          }
+          
+          const canvases = getCanvases(targetSpace.id);
+          setRelatedCanvases(canvases);
+          return;
+        }
+      }
+      
+      // No active space specified or not found
+      if (loadedSpaces.length > 0) {
+        // Set most recent space as current
+        const mostRecentSpace = [...loadedSpaces].sort(
+          (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
+        )[0];
+        
+        setCurrentSpace(mostRecentSpace);
+        if (mostRecentSpace.messages.length > 0) {
+          setShowWelcome(false);
+          setShowTools(false);
+        }
+        
+        const canvases = getCanvases(mostRecentSpace.id);
+        setRelatedCanvases(canvases);
+      }
+    };
+    
+    loadInitialData();
+  }, [location.state]);
+  
+  // Set username
   useEffect(() => {
     const auth = getAuth();
     const currentUser = auth.currentUser;
-    if (currentUser) {
-      setUsername(currentUser.displayName || "Guest");
-    } else {
-      setUsername("User");
-    }
+    setUsername(currentUser?.displayName || "Guest");
   }, []);
-
-  useEffect(() => {
-    const loadedSpaces = getSpaces();
-    setSpaces(loadedSpaces);
-
-    const activeSpaceId = location.state?.activeSpaceId;
-    if (activeSpaceId) {
-      const targetSpace = loadedSpaces.find(space => space.id === activeSpaceId);
-      if (targetSpace) {
-        setCurrentSpace(targetSpace);
-        setShowWelcome(false);
-        // If space has messages, hide the tools
-        if (targetSpace.messages.length > 0) {
-          setShowTools(false);
-        }
-        // Load related canvases
-        const canvases = getCanvases(targetSpace.id);
-        setRelatedCanvases(canvases);
-        return;
-      }
-
-    }
-
-    // get user spaces from firestore 
-    // useEffect(() => {
-    //   const loadSpacesFromFirestore = async () => {
-    //     if (!currentUser) return;
-    
-    //     const fetchedSpaces = await getUserSpaces(currentUser.uid);
-    //     setSpaces(fetchedSpaces);
-    //   };
-    
-    //   loadSpacesFromFirestore();
-    // }, [currentUser]);
-
-
-
-
-    // If no active space or space not found, fall back to default behavior
-    if (loadedSpaces.length === 0) {
-      // Don't automatically create a space anymore, wait for user to create one
-      setCurrentSpace(null);
-    } else {
-      // Set the most recently updated space as current
-      const mostRecentSpace = [...loadedSpaces].sort(
-        (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
-      )[0];
-      setCurrentSpace(mostRecentSpace);
-      
-      // If space has messages, hide welcome and tools
-      if (mostRecentSpace.messages.length > 0) {
-        setShowWelcome(false);
-        setShowTools(false);
-      }
-      
-      // Load related canvases
-      const canvases = getCanvases(mostRecentSpace.id);
-      setRelatedCanvases(canvases);
-    }
-  }, [location.state]);
-  //   if (loadedSpaces.length === 0) {
-  //     const newSpace = createSpace('Default Space');
-  //     setSpaces([newSpace]);
-  //     setCurrentSpace(newSpace);
-  //   } else {
-  //     const mostRecentSpace = [...loadedSpaces].sort(
-  //       (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
-  //     )[0];
-  //     setCurrentSpace(mostRecentSpace);
-  //     const canvases = getCanvases(mostRecentSpace.id);
-  //     setRelatedCanvases(canvases);
-  //   }
-  // }, [location.state]);
-
+  
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
   }, [currentSpace?.messages]);
-
+  
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-
+  
+  // Handlers
   const handleCreateNewChat = (name: string) => {
     const newSpace = createSpace(name);
     setSpaces(prev => [...prev, newSpace]);
@@ -150,114 +225,30 @@ const Index = () => {
       description: `New chat "${name}" has been created.`,
     });
   };
-
-  const auth = getAuth();
-  const currentUser = auth.currentUser;
-
-  if (!currentUser) {
-    toast({
-      title: "Authentication Error",
-      description: "User is not authenticated.",
-      variant: "destructive",
-    });
-    return;
-  }
-
-
-  // This creates a random document reference and uses its .id (without saving anything).
-  const generateFirestoreId = () => {
-    return doc(collection(db, "_")).id;
-  };
-
-  // const messageIdGenerated = generateFirestoreId();
-
+  
   const handleSendMessage = async (message: string) => {
     if (!currentSpace) {
       setCreateDialogOpen(true);
       return;
     }
-  
+    
     setShowWelcome(false);
     setShowTools(false);
-  
-    const userId = currentUser.uid;
-  
-    // 🟢 Optimistic UI update
-    const localUserMessage: ChatMessageType = {
-      id: generateFirestoreId(),
-      content: message,
-      isAi: false,
-      timestamp: new Date(),
-    };
-  
-    setCurrentSpace(prev =>
-      prev
-        ? {
-            ...prev,
-            messages: [...prev.messages, localUserMessage],
-            updatedAt: new Date(),
-          }
-        : null
-    );
-  
-    try {
-      // 📝 Store user message in Firestore
-      await addMessageToSpaceFirebaseHelpers(userId, currentSpace.id, message, false);
-  
-      // 🤖 Get AI response
-      const aiText = await getAiResponse(userId, currentSpace.id, message);
-  
-      // 🟢 Optimistic AI message update
-      const localAiMessage: ChatMessageType = {
-        id: generateFirestoreId(),
-        content: aiText,
-        isAi: true,
-        timestamp: new Date(),
-      };
-  
-      setCurrentSpace(prev =>
-        prev
-          ? {
-              ...prev,
-              messages: [...prev.messages, localAiMessage],
-              updatedAt: new Date(),
-            }
-          : null
-      );
-  
-      setSpaces(prevSpaces =>
-        prevSpaces.map(space =>
-          space.id === currentSpace.id
-            ? { ...space, updatedAt: new Date() }
-            : space
-        )
-      );
-  
-      if (currentSpace) {
-        const canvases = getCanvases(currentSpace.id);
-        setRelatedCanvases(canvases);
-      }
-  
-      // 📝 Store AI message in Firestore
-      await addMessageToSpaceFirebaseHelpers(userId, currentSpace.id, aiText, true);
-    } catch (error) {
-      console.error("Error during chat interaction:", error);
+    
+    const success = await sendMessage(message);
+    if (!success) {
       toast({
         title: "Error",
-        description: "Something went wrong during the chat interaction.",
+        description: "Failed to send message.",
         variant: "destructive",
       });
     }
   };
   
-
   const handleViewCanvas = (canvasId: string) => {
-    toast({
-      title: "Canvas Preview",
-      description: "Canvas previewing will be implemented soon.",
-    });
+    navigate('/canvas', { state: { canvasId } });
   };
-
+  
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -265,7 +256,7 @@ const Index = () => {
       setMediaDialogOpen(true);
     }
   };
-
+  
   const handleMediaUpload = () => {
     if (!selectedFile || !currentSpace) return;
     
@@ -273,8 +264,6 @@ const Index = () => {
     
     // Simulate upload with a timeout
     setTimeout(() => {
-      // In a real implementation, you would upload the file to a server
-      // and get a URL back. For now, we'll just create a message with the file name.
       const message = `[Shared a file: ${selectedFile.name}]`;
       handleSendMessage(message);
       
@@ -288,93 +277,104 @@ const Index = () => {
       });
     }, 1000);
   };
-
-
-  return (
-    <div className="flex min-h-screen bg-background">
-      <Sidebar />
-      <main className={`flex-1 p-4 md:p-10 ${isMobile ? 'pt-16' : ''}`}>
-        <div className="mx-auto max-w-4xl flex flex-col h-[calc(100vh-2rem)] md:h-[calc(100vh-5rem)]">
-          {/* <UserGreeting username={username} /> */}
-
-          {currentSpace && (
-            <div className="w-full mt-2 text-xl font-medium">
-              {currentSpace.name}
-            </div>
-          )}
-
-          {showTools && (
-            <div className="w-full mt-8 md:mt-12">
-              <ToolsTabs />
-            </div>
-          )}
-
-          {currentSpace && currentSpace.messages.length > 0 ? (
-            <div className="w-full mt-6 md:mt-10 mb-6 flex-grow overflow-y-auto">
-              {currentSpace.messages.map((message) => (
-                <ChatMessage
-                  key={message.id}
-                  content={message.content}
-                  isAi={message.isAi}
-                  timestamp={message.timestamp}
-                />
-              ))}
-              <div ref={messagesEndRef} />
+  
+  // Render the content of the chat area
+  const renderContent = () => {
+    if (!currentSpace || currentSpace.messages.length === 0) {
+      return (
+        <div className="flex-grow flex items-center justify-center">
+          {/* {showWelcome ? (
+            <div className="text-center max-w-md mx-auto p-8 bg-gradient-to-b from-background to-muted/30 rounded-xl shadow-sm border">
+              <h2 className="text-2xl font-bold mb-4 bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent">Welcome to Klarity</h2>
+              <p className="mb-8 text-muted-foreground">
+                Start a new conversation or select an existing chat from the sidebar.
+              </p>
+              <Button onClick={() => setCreateDialogOpen(true)} size="lg" className="gap-2 px-6">
+                <Plus size={16} />
+                Create New Chat
+              </Button>
             </div>
           ) : (
-            <div className="w-full mt-6 md:mt-10 flex-grow flex items-center justify-center">
-              {showWelcome ? (
-                <div className="text-center max-w-md mx-auto">
-                  {/* <h2 className="text-xl font-medium mb-4">Welcome to Praxis</h2>
-                  <p className="mb-8 text-muted-foreground">
-                    Start by creating a new chat or selecting an existing one from the sidebar.
-                  </p> */}
-
-                </div>
-              ) : (
-                <p className="text-center text-muted-foreground">
-                  Start a new conversation!
-                </p>
-              )}
-            </div>
-          )}
-
-             {/* <div className="w-full mt-6 md:mt-10 flex-grow flex items-center justify-center text-center text-muted-foreground">
-               <p>Start a new conversation!</p>
-             </div>
-           )} */}
-
-          {relatedCanvases.length > 0 && (
-            <div className="w-full mt-4 mb-4">
-              <h3 className="text-lg font-medium mb-2">Related Canvases</h3>
-              <div className="flex gap-2 flex-wrap">
-                {relatedCanvases.map(canvas => (
-                  <Button 
-                    key={canvas.id} 
-                    variant="outline" 
-                    size="sm"
-                    className="flex items-center gap-1"
-                    onClick={() => handleViewCanvas(canvas.id)}
-                  >
-                    <Image size={14} />
-                    <span className="truncate max-w-[150px]">{canvas.name}</span>
-                  </Button>
-                ))}
+            <div></div>
+          )} */}
+          <div></div>
+        </div>
+      );
+    }
+    
+    return (
+      <>
+        {currentSpace.messages.map((message: ChatMessageType) => (
+          <ChatMessage
+            key={message.id}
+            content={message.content}
+            isAi={message.isAi}
+            timestamp={message.timestamp}
+          />
+        ))}
+        <div ref={messagesEndRef} />
+      </>
+    );
+  };
+  
+  return (
+    <div className="flex h-screen overflow-hidden bg-background">
+      <SidebarShadcn />
+      
+      <div className="flex-1 flex flex-col h-full">
+        {/* Main layout with fixed header, scrollable content, and fixed footer */}
+        <div className="flex flex-col h-full">
+          {/* Fixed Header - Modified with reduced padding and smaller text */}
+          {currentSpace && (
+            <div className="flex-shrink-0 p-2 bg-background z-10 border-b">
+              <div className="mx-auto max-w-4xl flex items-center">
+                <h1 className="text-base font-normal">{currentSpace.name}</h1>
+                {relatedCanvases.length > 0 && (
+                  <div className="ml-auto">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="xs" className="flex items-center gap-1 h-7">
+                          <Image size={12} />
+                          <span className="text-sm">Canvases ({relatedCanvases.length})</span>
+                        </Button>
+                      </PopoverTrigger>
+                      {/* Popover content remains the same */}
+                    </Popover>
+                  </div>
+                )}
               </div>
             </div>
           )}
-
-<div className=" flex w-full fixed  bottom-0 bg-background pt-4 pb-0 ">
-            <div className="flex flex-col gap-2 w-full max-w-4xl ">
-              <InputPrompt 
-                onSendMessage={handleSendMessage} 
-                placeholder={currentSpace ? "Type your message here..." : "Create a new chat to start messaging"}
-              />
-              <div className="flex justify-end"></div>
+          
+          {showTools && (
+            <div className="flex-shrink-0 px-4 md:px-6 lg:px-8">
+              <div className="mx-auto max-w-4xl">
+                <ToolsTabs
+                        onSendMessage={handleSendMessage}
+                        />
+              </div>
+            </div>
+          )}
+          
+          {/* Scrollable Content Area */}
+          <div className="flex-grow overflow-y-auto px-4 md:px-6 lg:px-8 py-4">
+            <div className="mx-auto max-w-4xl">
+              {renderContent()}
             </div>
           </div>
+          
+          {/* Fixed Footer - Input Area */}
+          <div className="flex-shrink-0 p-4 md:p-6 lg:p-8 pt-2 md:pt-3 lg:pt-4">
+          <div className="mx-auto max-w-4xl">
+            <InputPrompt 
+              onSendMessage={handleSendMessage} 
+              placeholder={currentSpace ? "Type your message here..." : "Create a new chat to start messaging"}
+              disabled={!currentSpace}
+            />
+          </div>
         </div>
-      </main>
+        </div>
+      </div>
       
       <CreateItemDialog
         open={createDialogOpen}
@@ -394,14 +394,14 @@ const Index = () => {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex flex-col items-center justify-center p-4 border rounded-md">
+          <div className="flex flex-col items-center justify-center p-6 border rounded-md bg-muted/20 my-4">
             {selectedFile && (
               <div className="text-center">
-                <div className="mb-2">
-                  {/* <File size={48} className="mx-auto text-muted-foreground" /> */}
+                <div className="mb-3 p-4 bg-background rounded-full">
+                  <Image size={48} className="mx-auto text-primary" />
                 </div>
                 <p className="text-sm font-medium">{selectedFile.name}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground mt-1">
                   {(selectedFile.size / 1024).toFixed(1)} KB
                 </p>
               </div>
@@ -413,8 +413,9 @@ const Index = () => {
             <Button 
               onClick={handleMediaUpload} 
               disabled={!selectedFile || uploadingMedia}
+              className="gap-2"
             >
-              {uploadingMedia ? "Sharing..." : "Share"}
+              {uploadingMedia ? "Sharing..." : "Share File"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -422,14 +423,285 @@ const Index = () => {
     </div>
   );
 };
-          {/* <div className="w-full mt-auto sticky bottom-0 bg-background pt-4 pb-4">
-            <InputPrompt onSendMessage={handleSendMessage} />
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}; */}
 
 export default Index;
 
+
+
+// import React, { useState, useEffect, useRef } from 'react';
+// import { MessageCircle } from "lucide-react";
+// import { getAuth } from "firebase/auth";
+// import { doc, collection } from "firebase/firestore";
+// import { db } from "../firebase/firebase";
+
+// // Components
+// import { SidebarShadcn } from "@/components/SidebarShadcn";
+// import { ToolsTabs } from "@/components/tools-tabs";
+// import { InputPrompt } from "@/components/input-prompt";
+// import { ChatMessage } from "@/components/chat-message";
+// import { Button } from "@/components/ui/button";
+// import { 
+//   Dialog, 
+//   DialogContent, 
+//   DialogDescription,
+//   DialogFooter,
+//   DialogHeader,
+//   DialogTitle
+// } from "@/components/ui/dialog";
+// import { CreateItemDialog } from '@/components/create-item-dialog';
+
+// // Hooks & Services
+// import { useIsMobile } from "@/hooks/use-mobile";
+// import { useToast } from '@/hooks/use-toast';
+// import { 
+//   addMessageToSpace, 
+//   createSpace, 
+//   getAiResponse, 
+//   getSpaces, 
+//   getCanvases 
+// } from "@/services/chat-service";
+
+// // Types
+// import { ChatSpace, Canvas, ChatMessage as ChatMessageType } from "@/models/chat";
+
+// // Main component
+// const Index = () => {
+//   const isMobile = useIsMobile();
+//   const { toast } = useToast();
+//   const messagesEndRef = useRef(null);
+  
+//   // State
+//   const [spaces, setSpaces] = useState<ChatSpace[]>([]);
+//   const [currentSpace, setCurrentSpace] = useState<ChatSpace | null>(null);
+//   const [relatedCanvases, setRelatedCanvases] = useState<Canvas[]>([]);
+//   const [showWelcome, setShowWelcome] = useState(true);
+//   const [showTools, setShowTools] = useState(true);
+//   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  
+//   // Initial data loading
+//   useEffect(() => {
+//     const loadInitialData = () => {
+//       const loadedSpaces = getSpaces();
+//       setSpaces(loadedSpaces);
+      
+//       if (loadedSpaces.length > 0) {
+//         // Set most recent space as current
+//         const mostRecentSpace = [...loadedSpaces].sort(
+//           (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
+//         )[0];
+        
+//         setCurrentSpace(mostRecentSpace);
+//         if (mostRecentSpace.messages.length > 0) {
+//           setShowWelcome(false);
+//           setShowTools(false);
+//         }
+        
+//         const canvases = getCanvases(mostRecentSpace.id);
+//         setRelatedCanvases(canvases);
+//       }
+//     };
+    
+//     loadInitialData();
+//   }, []);
+  
+//   // Auto-scroll to bottom when messages change
+//   useEffect(() => {
+//     scrollToBottom();
+//   }, [currentSpace?.messages]);
+  
+//   const scrollToBottom = () => {
+//     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+//   };
+  
+//   // Generate a Firestore-style ID (simplified for example)
+//   const generateFirestoreId = () => {
+//     return 'id-' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+//   };
+  
+//   // Handlers
+//   const handleCreateNewChat = (name: string) => {
+//     const newSpace = createSpace(name);
+//     setSpaces(prev => [...prev, newSpace]);
+//     setCurrentSpace(newSpace);
+//     setShowWelcome(false);
+//     toast({
+//       title: "Chat Created",
+//       description: `New chat "${name}" has been created.`,
+//     });
+//   };
+  
+//   const handleSendMessage = async (message: string) => {
+//     if (!currentSpace) {
+//       setCreateDialogOpen(true);
+//       return;
+//     }
+    
+//     setShowWelcome(false);
+//     setShowTools(false);
+    
+//     // Create optimistic user message
+//     const localUserMessage: ChatMessageType = {
+//       id: generateFirestoreId(),
+//       content: message,
+//       isAi: false,
+//       timestamp: new Date(),
+//     };
+    
+//     // Update UI optimistically
+//     setCurrentSpace(prev => prev ? {
+//       ...prev,
+//       messages: [...prev.messages, localUserMessage],
+//       updatedAt: new Date()
+//     } : null);
+    
+//     try {
+//       // Get AI response (simulated for this example)
+//       const aiResponseText = await simulateAiResponse(message);
+      
+//       // Create optimistic AI message
+//       const localAiMessage: ChatMessageType = {
+//         id: generateFirestoreId(),
+//         content: aiResponseText,
+//         isAi: true,
+//         timestamp: new Date(),
+//       };
+      
+//       // Update UI with AI response
+//       setCurrentSpace(prev => prev ? {
+//         ...prev,
+//         messages: [...prev.messages, localAiMessage],
+//         updatedAt: new Date()
+//       } : null);
+      
+//       // Update spaces list to reflect most recent activity
+//       setSpaces(prevSpaces => prevSpaces.map(space => 
+//         space.id === currentSpace.id ? { ...space, updatedAt: new Date() } : space
+//       ));
+      
+//       return true;
+//     } catch (error) {
+//       console.error("Error during chat interaction:", error);
+//       toast({
+//         title: "Error",
+//         description: "Something went wrong during the chat interaction.",
+//         variant: "destructive",
+//       });
+//       return false;
+//     }
+//   };
+  
+//   // Simulate AI response (replace with actual API call in production)
+//   const simulateAiResponse = async (message: string): Promise<string> => {
+//     return new Promise((resolve) => {
+//       setTimeout(() => {
+//         resolve(`This is a simulated response to: "${message}"`);
+//       }, 1000);
+//     });
+//   };
+  
+//   // Handle suggestion click from tools tab
+//   const handleSuggestionClick = (suggestion: string) => {
+//     handleSendMessage(suggestion);
+//   };
+  
+//   // Suggestions for InputPrompt
+//   const chatSuggestions = [
+//     "Tell me more about this topic",
+//     "Can you provide examples?",
+//     "What's your opinion on this?"
+//   ];
+  
+//   // Render the content of the chat area
+//   const renderContent = () => {
+//     if (!currentSpace || currentSpace.messages.length === 0) {
+//       return (
+//         // <div className="flex-grow flex items-center justify-center">
+//         //   <div className="text-center max-w-md mx-auto p-8 bg-gradient-to-b from-background to-muted/30 rounded-xl shadow-sm border">
+//         //     <h2 className="text-2xl font-bold mb-4 bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent">Welcome to Chat</h2>
+//         //     <p className="mb-8 text-muted-foreground">
+//         //       Start a new conversation or select an existing chat from the sidebar.
+//         //     </p>
+//         //     <Button onClick={() => setCreateDialogOpen(true)} size="lg" className="gap-2 px-6">
+//         //       <MessageCircle size={16} />
+//         //       Create New Chat
+//         //     </Button>
+//         //   </div>
+//         // </div>
+//         <div></div>
+//       );
+//     }
+    
+//     return (
+//       <>
+//         {currentSpace.messages.map((message: ChatMessageType) => (
+//           <ChatMessage
+//             key={message.id}
+//             content={message.content}
+//             isAi={message.isAi}
+//             timestamp={message.timestamp}
+//           />
+//         ))}
+//         <div ref={messagesEndRef} />
+//       </>
+//     );
+//   };
+  
+//   return (
+//     <div className="flex h-screen overflow-hidden bg-background">
+//       <SidebarShadcn />
+      
+//       <div className="flex-1 flex flex-col h-full">
+//         <div className="flex flex-col h-full">
+//           {/* Fixed Header */}
+//           {currentSpace && (
+//             <div className="flex-shrink-0 p-2 bg-background z-10 border-b">
+//               <div className="mx-auto max-w-4xl flex items-center">
+//                 <h1 className="text-base font-normal">{currentSpace.name}</h1>
+//               </div>
+//             </div>
+//           )}
+          
+//           {/* Tools Tab Area */}
+//           {showTools && (
+//             <div className="flex-shrink-0 px-4 md:px-6 lg:px-8 py-6">
+//               <div className="mx-auto max-w-4xl">
+//                 <ToolsTabs onSendMessage={handleSendMessage}/>
+//               </div>
+//             </div>
+//           )}
+          
+//           {/* Scrollable Content Area */}
+//           <div className="flex-grow overflow-y-auto px-4 md:px-6 lg:px-8 py-4">
+//             <div className="mx-auto max-w-4xl">
+//               {renderContent()}
+//             </div>
+//           </div>
+          
+//           {/* Fixed Footer - Input Area */}
+//           <div className="flex-shrink-0 p-4 md:p-6 lg:p-8 pt-2 md:pt-3 lg:pt-4">
+//             <div className="mx-auto max-w-4xl">
+//               <InputPrompt 
+//                 onSendMessage={handleSendMessage} 
+//                 placeholder={currentSpace ? "Type your message here..." : "Create a new chat to start messaging"}
+//                 disabled={!currentSpace}
+//                 promptSuggestions={currentSpace ? chatSuggestions : []}
+//                 onSuggestionClick={handleSuggestionClick}
+//               />
+//             </div>
+//           </div>
+//         </div>
+//       </div>
+      
+//       <CreateItemDialog
+//         open={createDialogOpen}
+//         onClose={() => setCreateDialogOpen(false)}
+//         onSubmit={handleCreateNewChat}
+//         title="Create New Chat"
+//         description="Enter a name for your new chat."
+//         itemLabel="Chat"
+//       />
+//     </div>
+//   );
+// };
+
+// export default Index;

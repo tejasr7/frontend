@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Sidebar } from "@/components/sidebar";
+// import { Sidebar } from "@/components/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -7,6 +7,7 @@ import { Wand2, Download, Save } from "lucide-react";
 import { Tldraw, exportToBlob, exportToSvg, TldrawEditor } from '@tldraw/tldraw';
 import '@tldraw/tldraw/tldraw.css';
 import { saveCanvas, getSpaces } from "@/services/chat-service";
+import { SidebarShadcn } from "@/components/SidebarShadcn";
 
 const CanvasPage = () => {
   const isMobile = useIsMobile();
@@ -198,7 +199,8 @@ const CanvasPage = () => {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar />
+      {/* <Sidebar /> */}
+      <SidebarShadcn />
       <main className={`flex-1 p-4 md:p-10 ${isMobile ? 'pt-16' : ''}`}>
         <div className="max-w-4xl h-full rounded px-[19px] py-[12px] my-0 mx-0">
           <h1 className="text-2xl font-bold mb-4">Canvas</h1>
