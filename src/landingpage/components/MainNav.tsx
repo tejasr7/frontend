@@ -15,10 +15,14 @@ import { Button } from "../../components/ui/button"
 export function MainNav() {
   return (
     <div className="flex justify-between items-center w-full">
-      <a href="/" className="flex items-center gap-2">
+      {/* <a href="/" className="flex items-center gap-2">
         <PaperPlaneIcon className="h-6 w-6 rotate-[-15deg] animate-pulse" />
         <span className="text-xl font-medium">Questnote</span>
-      </a>
+      </a> */}
+      <div className="flex items-center gap-2">
+      <PaperPlaneIcon className="h-6 w-6 rotate-[-15deg] animate-pulse" />
+      <span className="text-xl font-medium">Questnote</span>
+      </div>
 
       {/* <NavigationMenu className="hidden md:flex">
         <NavigationMenuList>
