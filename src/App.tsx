@@ -64,8 +64,8 @@ const App = () => {
 
             <Routes>
               {/* Public Routes */}
-              <Route path="/signin" element={<SignIn />} />
-              <Route path="/signup" element={<SignUp />} />
+              {/* <Route path="/signin" element={<SignIn />} />
+              <Route path="/signup" element={<SignUp />} /> */}
               <Route path="/courses" element={<CoursesPage />} />
               <Route path="/tasks" element={<TasksPage />} />
               <Route path="/profile" element={<ProfilePage />} />
