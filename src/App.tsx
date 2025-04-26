@@ -71,26 +71,26 @@ const App = () => {
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/desmos" element={<Desmos />} />
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/landingpage" element={<LandingPage />} />
+              {/* <Route path="/landingpage" element={<LandingPage />} /> */}
 
               {/* Protected Routes */}
-              <Route
+              {/* <Route
                 path="/"
                 element={
                   <PrivateRoute>
                     <Index />
                   </PrivateRoute>
                 }
-              />
+              /> */}
               
-              {/* <Route
-                path="/landingpage"
+              <Route
+                path="/"
                 element={
                   <PrivateRoute>
                     <LandingPage />
                   </PrivateRoute>
                 }
-              /> */}
+              />
               
               <Route
                 path="/journals"
